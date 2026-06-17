@@ -2,7 +2,7 @@
 // Non-PHI mock data so the button works on GitHub Pages where the real
 // sample PDFs (gitignored) are unavailable.
 window.TML_DEMO = {
-  patient: { name: 'Demo Patient', age: 35, sex: 'Male', date: '2026-04-15' },
+  patient: { name: 'Demo Patient', age: 35, sex: 'Male', date: '2026-04-15', patient_id: 'TML-DEMO-001', referring_physician: 'Self-referred' },
   vald: {
     patient: { name: 'Demo Patient' },
     meta: { last_test: '15 April 2026', practitioner: 'Dr. Rakshith Rajaram' },

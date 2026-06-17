@@ -42,14 +42,14 @@
   function renderCover(c) {
     const p = c.patient || {};
     const kv = [
-      ['Report Date', p.endpoint_date || ''],
-      ['Programme', p.programme || ''],
-      ['Employee Name', p.name || ''],
-      ['Age / Sex', `${p.age || ''} years  ·  ${p.sex || ''}`],
-      ['Employee ID', p.employee_id || ''],
-      ['Department', p.department || ''],
-      ['Assessment — Baseline', p.baseline_date || ''],
-      ['Assessment — End-Point', p.endpoint_date || ''],
+      ['Report Date',         p.endpoint_date || ''],
+      ['Programme',           p.programme || ''],
+      ['Patient Name',        p.name || ''],
+      ['Age / Sex',           `${p.age || ''} years  ·  ${p.sex || ''}`],
+      ['Patient ID',          p.patient_id || p.employee_id || ''],
+      ['Assessment Date',     p.endpoint_date || ''],
+      ['Referring Physician', p.referring_physician || ''],
+      ['Reviewed by',         p.authored_by || ''],
     ];
     const grid = el('div', { class: 'kv-grid' });
     kv.forEach(([k, v]) => {
@@ -67,10 +67,10 @@
     return el('div', { class: 'page cover' }, [
       brandBand(),
       el('h1', {}, ['THE MOVEMENT LAB', el('span', { class: 'sub' }, 'Lifestyle, Realigned.')]),
-      el('h2', {}, 'Employee Wellbeing Report'),
-      el('div', { class: 'prepared' }, p.client ? `Prepared for ${p.client}` : ''),
+      el('h2', {}, 'Patient Wellness Report'),
+      el('div', { class: 'prepared' }, p.programme || ''),
       grid,
-      pageFoot(p.client ? `Part of the ${p.programme || 'TML'} × ${p.client} cycle.` : ''),
+      pageFoot(),
     ]);
   }
 

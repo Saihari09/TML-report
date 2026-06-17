@@ -70,7 +70,7 @@
   <!-- STEP 1: package -->
   <div class="panel">
     <h2>1. Patient & package</h2>
-    <div class="compact-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr; margin-bottom: 14px;">
+    <div class="compact-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr; margin-bottom: 10px;">
       <div><label>Patient name</label><input id="p_name" /></div>
       <div><label>Age</label><input id="p_age" type="number" /></div>
       <div><label>Sex</label>
@@ -79,6 +79,10 @@
         </select>
       </div>
       <div><label>Assessment date</label><input id="p_date" type="date" /></div>
+    </div>
+    <div class="compact-grid" style="grid-template-columns: 1fr 2fr; margin-bottom: 14px;">
+      <div><label>Patient ID (optional)</label><input id="p_pid" placeholder="TML-2026-0421" /></div>
+      <div><label>Referring physician (optional)</label><input id="p_ref" placeholder="Dr. ..." /></div>
     </div>
     <p class="app-subtitle" style="margin: 4px 0 8px;">Package determines which sections appear in the generated report.</p>
     <div class="pkgs" id="pkgs">
@@ -536,6 +540,8 @@ document.getElementById('loadSamples').addEventListener('click', () => {
   document.getElementById('p_age').value  = D.patient.age;
   document.getElementById('p_sex').value  = D.patient.sex;
   document.getElementById('p_date').value = D.patient.date;
+  document.getElementById('p_pid').value  = D.patient.patient_id || '';
+  document.getElementById('p_ref').value  = D.patient.referring_physician || '';
 
   // VALD (no images in demo — those need a real PDF)
   state.vald = { tests: { ...D.vald.tests }, patient: D.vald.patient, meta: D.vald.meta };
@@ -702,6 +708,8 @@ document.getElementById('generate').addEventListener('click', () => {
       age: document.getElementById('p_age').value,
       sex: document.getElementById('p_sex').value,
       endpoint_date: document.getElementById('p_date').value,
+      patient_id: document.getElementById('p_pid').value,
+      referring_physician: document.getElementById('p_ref').value,
       programme: { pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness' }[state.pkg],
       authored_by: TML_AUTH.getSession()?.user || '',
     },

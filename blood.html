@@ -31,10 +31,10 @@
     <h2>1. Patient details</h2>
     <div class="form-grid">
       <div><label>Name</label><input id="p_name" placeholder="Mr. / Ms. ..." /></div>
-      <div><label>Employee ID</label><input id="p_eid" /></div>
+      <div><label>Patient ID</label><input id="p_eid" /></div>
       <div><label>Age</label><input id="p_age" type="number" /></div>
       <div><label>Sex</label><select id="p_sex"><option>Male</option><option>Female</option><option>Other</option></select></div>
-      <div><label>Department</label><input id="p_dept" /></div>
+      <div><label>Referring Physician</label><input id="p_dept" /></div>
       <div><label>Assessment Date</label><input id="p_date" type="date" /></div>
     </div>
   </div>
@@ -200,8 +200,8 @@ document.getElementById('generate').addEventListener('click', () => {
       name: document.getElementById('p_name').value,
       age:  document.getElementById('p_age').value,
       sex:  document.getElementById('p_sex').value,
-      employee_id: document.getElementById('p_eid').value,
-      department:  document.getElementById('p_dept').value,
+      patient_id: document.getElementById('p_eid').value,
+      referring_physician:  document.getElementById('p_dept').value,
       endpoint_date: document.getElementById('p_date').value,
     },
     blood: {
