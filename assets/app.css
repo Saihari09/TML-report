@@ -35,6 +35,8 @@ h1.app-title { font-size: 28px; color: var(--tml-burgundy); margin: 0 0 4px; fon
 .panel h2 { font-size: 16px; margin: 0 0 12px; color: var(--tml-burgundy); }
 
 .drop {
+  display: block;
+  width: 100%;
   border: 2px dashed var(--tml-gold);
   background: var(--tml-cream-dark);
   border-radius: 6px;
@@ -42,6 +44,7 @@ h1.app-title { font-size: 28px; color: var(--tml-burgundy); margin: 0 0 4px; fon
   text-align: center;
   cursor: pointer;
   transition: background 0.2s;
+  box-sizing: border-box;
 }
 .drop:hover, .drop.over { background: #EFE6D5; }
 .drop input { display: none; }
