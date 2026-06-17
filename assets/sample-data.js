@@ -1,5 +1,78 @@
-// Sample case data — verbatim from the TML × Reliance mock report (Mr. Anandan T.)
-// Used to render template.html and as a "Load sample" option in each generator.
+// Demo case for the generator's "Load all samples" button.
+// Non-PHI mock data so the button works on GitHub Pages where the real
+// sample PDFs (gitignored) are unavailable.
+window.TML_DEMO = {
+  patient: { name: 'Demo Patient', age: 35, sex: 'Male', date: '2026-04-15' },
+  vald: {
+    patient: { name: 'Demo Patient' },
+    meta: { last_test: '15 April 2026', practitioner: 'Dr. Rakshith Rajaram' },
+    tests: {
+      sit_to_stand:    { title: 'Sit to Stand - 5 Reps', peak: 12.4, avg: null,  left: null, right: null, asymmetry: null },
+      trunk_flexion:   { title: 'Trunk Flexion',          peak: 114,  avg: 97,    left: null, right: null, asymmetry: null },
+      trunk_extension: { title: 'Trunk Extension',        peak: 29,   avg: 28,    left: null, right: null, asymmetry: null },
+      trunk_lat_flex:  { title: 'Trunk Lateral Flexion',  peak: null, avg: null,  left: 33,   right: 33,   asymmetry: 1.1, dominant: 'right' },
+      trunk_rotation:  { title: 'Trunk Rotation',         peak: null, avg: null,  left: 77,   right: 105,  asymmetry: 27,  dominant: 'right' },
+    },
+  },
+  blood: {
+    meta: { lab: 'Hitech Diagnostic Centre', collected: '11 March 2026', reported: '11 March 2026', referred_by: 'Dr. Rakshith Rajaram' },
+    values: {
+      glucose_fasting: 109, glucose_pp: 92.4, insulin_fasting: 22.80,
+      crp: 4.25, magnesium: 2.4,
+      hb: 16.2, rbc: 5.42, pcv: 49.8, mcv: 91.9, mch: 29.9, mchc: 32.5, rdw: 14.3,
+      wbc: 8260, neutrophils_abs: 5443, lymphocytes_abs: 2230, monocytes_abs: 231,
+      eosinophils_abs: 322, basophils_abs: 33,
+      neutrophils_pct: 65.9, lymphocytes_pct: 27.0, monocytes_pct: 2.8, eosinophils_pct: 3.9, basophils_pct: 0.4,
+      platelets: 302, mpv: 10.7, pdw: 12.6, esr: 5,
+      ferritin: 132, vitd: 14.90,
+    },
+  },
+  bca: {
+    source: 'fittr-bca',
+    patient: { name: 'Demo Patient', age: 35 },
+    summary: 'Demo patient shows a normal BMI of 24.1, which falls within the healthy weight range. However, the total body fat percentage is 28.4%, slightly elevated for optimal health. Lean body mass and skeletal muscle percentage are within normal ranges. Overall body health status indicates "Needs Attention," suggesting structured intervention is warranted.',
+    critical: {
+      immediate: 'Elevated body fat percentage (28.4%) may increase risk for metabolic issues even at normal BMI. Combination of normal weight with high body fat can carry metabolic risks if not addressed through body composition improvements.',
+      monitoring: 'Body water percentage and intracellular/extracellular water ratio appear balanced.\n\nMuscle distribution shows acceptable symmetry overall with minor side differences within normal variation.\n\nTrunk holds the majority of fat mass, which is typical but emphasises the importance of core-focused exercise and overall fat-reduction strategies.',
+    },
+    metrics: [
+      { metric: 'Weight',                       value: '72.4', value_num: 72.4, unit: 'kg', status: 'Normal',     tier: 'green' },
+      { metric: 'Body Mass Index ( BMI )',      value: '24.1', value_num: 24.1, unit: '',   status: 'Normal',     tier: 'green' },
+      { metric: 'Fat mass',                     value: '20.6', value_num: 20.6, unit: 'kg', status: 'Overweight', tier: 'orange' },
+      { metric: 'Fat percentage',               value: '28.4', value_num: 28.4, unit: '%',  status: 'High',       tier: 'orange' },
+      { metric: 'Skeletal muscle mass',         value: '28.9', value_num: 28.9, unit: 'kg', status: '',           tier: null },
+      { metric: 'Skeletal muscle percentage',   value: '39.9', value_num: 39.9, unit: '%',  status: 'Lean',       tier: 'green' },
+      { metric: 'Lean mass',                    value: '51.8', value_num: 51.8, unit: 'kg', status: 'Healthy',    tier: 'green' },
+      { metric: 'Lean mass percentage',         value: '71.5', value_num: 71.5, unit: '%',  status: 'Average',    tier: 'yellow' },
+      { metric: 'Visceral fat',                 value: '9',    value_num: 9,    unit: '',   status: 'Normal',     tier: 'green' },
+      { metric: 'Body health status',           value: 'Needs Attention', value_num: NaN, unit: '', status: '', tier: 'orange' },
+    ],
+  },
+  body_comp: { weight: 72.4, bmi: 24.1, bf: 28.4, vf: 9, mm: 28.9, a1c: 5.6 },
+  nutrimeter: [3, 3, 3, 2, 2, 2, 3, 2, 3, 2],   // total 25 → Compromised
+  pss: 18, psqi: 7,
+  recs: {
+    movement: [
+      'Continue twice-weekly physiotherapy with focus on cervical lateral flexion and lumbar extension mobility.',
+      'Progress single-leg loading (split squat, single-leg deadlift) to close residual quadriceps asymmetry.',
+      'Re-test full HumanTrak battery at 12 weeks.',
+    ],
+    blood: [
+      'Vitamin D3 60,000 IU weekly × 8 weeks; re-test serum 25-OH at 12 weeks.',
+      'Repeat fasting glucose + HbA1c in 12 weeks; monitor lipid panel.',
+    ],
+    nutrition: [
+      'Protein-anchored breakfast (≥25 g protein) and low-glycaemic carbohydrate strategy.',
+      'Aim for BMI reduction toward 22.5 over the next cycle; ~1% body-weight loss per 4 weeks.',
+    ],
+    mental: [
+      'Daily 10-minute diaphragmatic breath-work + progressive muscle relaxation, 5×/week.',
+      '60-minute wind-down protocol before bed; no screens, dim light, journaling.',
+    ],
+  },
+};
+
+// Original template-mode case (Mr. Anandan T.) — used only by template.html
 window.TML_SAMPLE = {
   patient: {
     name: "Mr. Anandan T.",

@@ -525,28 +525,63 @@ document.getElementById('clearSources').addEventListener('click', () => {
   renderSources(); buildValdTable();
 });
 
-document.getElementById('loadSamples').addEventListener('click', async () => {
-  setOverlay(true, 'Loading samples…', '3 PDFs');
-  // try fetching sample-blood.pdf and sample-humantrak.pdf from the site root (gitignored, only local)
-  for (const name of ['sample-humantrak.pdf', 'sample-blood.pdf', 'sample-bca.pdf']) {
-    try {
-      const r = await fetch('/' + name);
-      if (!r.ok) continue;
-      const blob = await r.blob();
-      await handleFile(new File([blob], name, { type: 'application/pdf' }));
-    } catch (e) { /* skip */ }
-  }
-  // Visceral fat + HbA1c aren't in the BCA table; pre-fill the rest only if BCA didn't.
-  const setIfEmpty = (id, v) => { const e = document.getElementById(id); if (e && !e.value) e.value = v; };
-  setIfEmpty('bc_vf', 9);     // From the BCA "Keep Monitoring" text
-  setIfEmpty('bc_a1c', 6.0);  // Carried from Anandan T. mock for demo only
-  document.getElementById('pss').value = 26;
-  document.getElementById('psqi').value = 13;
-  [4,4,5,4,5,3,4,3,4,2].forEach((v, i) => {
+document.getElementById('loadSamples').addEventListener('click', () => {
+  // Load embedded demo data (no PDF fetches — works on GitHub Pages too).
+  const D = window.TML_DEMO;
+  if (!D) { alert('Demo data not loaded'); return; }
+  setOverlay(true, 'Loading demo case…', 'No PDFs needed');
+
+  // Patient
+  document.getElementById('p_name').value = D.patient.name;
+  document.getElementById('p_age').value  = D.patient.age;
+  document.getElementById('p_sex').value  = D.patient.sex;
+  document.getElementById('p_date').value = D.patient.date;
+
+  // VALD (no images in demo — those need a real PDF)
+  state.vald = { tests: { ...D.vald.tests }, patient: D.vald.patient, meta: D.vald.meta };
+  state.sources.push({ name: 'demo-humantrak.json', type: 'HumanTrak (demo)', ok: true });
+
+  // Blood
+  state.blood = { values: { ...D.blood.values }, meta: D.blood.meta, patient: { name: D.patient.name } };
+  state.sources.push({ name: 'demo-blood.json', type: 'Blood (demo)', ok: true });
+
+  // BCA
+  state.bca = D.bca;
+  state.sources.push({ name: 'demo-bca.json', type: 'BCA (demo)', ok: true });
+
+  // Body composition fields (BCA fills most, fall back to demo values)
+  const bc = D.body_comp;
+  const setIfEmpty = (id, v) => { const e = document.getElementById(id); if (e && (v != null) && !e.value) e.value = v; };
+  setIfEmpty('bc_wt',  bc.weight);
+  setIfEmpty('bc_bmi', bc.bmi);
+  setIfEmpty('bc_bf',  bc.bf);
+  setIfEmpty('bc_vf',  bc.vf);
+  setIfEmpty('bc_mm',  bc.mm);
+  setIfEmpty('bc_a1c', bc.a1c);
+
+  // Nutri Meter
+  D.nutrimeter.forEach((v, i) => {
     const r = document.querySelector(`input[name="nm${i}"][value="${v}"]`);
     if (r) r.checked = true;
   });
   document.getElementById('nmTable').dispatchEvent(new Event('change'));
+
+  // PSS/PSQI
+  document.getElementById('pss').value = D.pss;
+  document.getElementById('psqi').value = D.psqi;
+
+  // Recommendations
+  document.getElementById('recs_movement').value  = D.recs.movement.join('\n');
+  document.getElementById('recs_blood').value     = D.recs.blood.join('\n');
+  document.getElementById('recs_nutrition').value = D.recs.nutrition.join('\n');
+  document.getElementById('recs_mental').value    = D.recs.mental.join('\n');
+
+  // Refresh UI
+  renderSources();
+  buildValdTable();
+  document.getElementById('badge_movement').className = 'badge green';
+  document.getElementById('badge_movement').textContent = `${Object.keys(state.vald.tests).length} tests (demo)`;
+
   setOverlay(false);
 });
 
