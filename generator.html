@@ -105,7 +105,7 @@
   <!-- STEP 2: drop files -->
   <div class="panel">
     <h2>2. Drop source PDFs</h2>
-    <p class="app-subtitle" style="margin: 0 0 10px;">Supports any combination of: <strong>Hitech Diagnostic blood PDF</strong> and <strong>VALD HumanTrak PDF</strong>. Dynamo (image-only) and questionnaires go in the manual sections below.</p>
+    <p class="app-subtitle" style="margin: 0 0 10px;">Supports any combination of: <strong>Hitech Diagnostic blood PDF</strong>, <strong>VALD HumanTrak PDF</strong>, and <strong>FITTR BCA PDF</strong>. Dynamo (image-only) and questionnaires go in the manual sections below.</p>
     <label class="drop" id="drop">
       <input type="file" id="file" accept=".pdf,.xlsx,.xls,.csv" multiple />
       <div class="big">Drop one or more files here, or click to choose</div>
@@ -194,12 +194,13 @@ const state = {
   blood: { values: {}, meta: {}, patient: {} },
   vald:  { tests: {}, patient: {}, meta: {} },
   dynamo: {},            // { test_key: { left, right } }
+  bca:   null,           // { summary, critical, metrics, patient }
 };
 
 const PKG_INCLUDES = {
-  pkg1: ['cover', 'background', 'movement', 'blood', 'integrated'],
-  pkg2: ['cover', 'background', 'summary', 'movement', 'blood', 'nutrition', 'integrated'],
-  pkg3: ['cover', 'background', 'summary', 'movement', 'blood', 'nutrition', 'wellbeing', 'integrated'],
+  pkg1: ['cover', 'background', 'movement', 'movement_images', 'blood', 'integrated'],
+  pkg2: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'integrated'],
+  pkg3: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'wellbeing', 'integrated'],
 };
 
 // --- package selector --------------------------------------------------------
@@ -384,6 +385,9 @@ async function handleFile(file) {
     } else if (result.source === 'hitech-blood' || result.source === 'generic-blood') {
       row.type = `Blood (${result.source === 'hitech-blood' ? 'Hitech' : 'generic'})`; row.ok = true;
       mergeBlood(result);
+    } else if (result.source === 'fittr-bca') {
+      row.type = 'BCA (FITTR)'; row.ok = true;
+      mergeBCA(result);
     } else if (result.sheets) {
       row.type = 'Excel/CSV'; row.ok = true;
       mergeBlood(result);
@@ -424,6 +428,35 @@ function mergeVALD(r) {
   // re-render VALD table to reflect parsed values
   buildValdTable();
 }
+function mergeBCA(r) {
+  state.bca = r;
+  if (r.patient && r.patient.name && !document.getElementById('p_name').value) {
+    document.getElementById('p_name').value = r.patient.name;
+  }
+  if (r.patient && r.patient.age && !document.getElementById('p_age').value) {
+    document.getElementById('p_age').value = r.patient.age;
+  }
+  // Auto-populate body composition fields from the BCA metric table.
+  // Normalize keys (strip parens/non-alphanum) so layout quirks don't break the lookup.
+  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const byMetric = {};
+  (r.metrics || []).forEach(m => { byMetric[norm(m.metric)] = m.value_num; });
+  const set = (id, ...keys) => {
+    for (const k of keys) {
+      const v = byMetric[norm(k)];
+      if (v != null && !isNaN(v)) {
+        const el = document.getElementById(id);
+        if (el && !el.value) { el.value = v; return; }
+      }
+    }
+  };
+  set('bc_wt',  'weight');
+  set('bc_bmi', 'body mass index bmi', 'bmi', 'body mass index');
+  set('bc_bf',  'fat percentage');
+  set('bc_mm',  'skeletal muscle mass');
+  // Visceral fat / HbA1c remain manual; visceral fat is mentioned in the summary but not in the table
+}
+
 function mergeBlood(r) {
   state.blood.values = { ...state.blood.values, ...r.values };
   state.blood.meta   = { ...state.blood.meta,   ...r.meta };
@@ -444,7 +477,7 @@ document.getElementById('clearSources').addEventListener('click', () => {
 
 document.getElementById('loadSamples').addEventListener('click', async () => {
   // try fetching sample-blood.pdf and sample-humantrak.pdf from the site root (gitignored, only local)
-  for (const name of ['sample-humantrak.pdf', 'sample-blood.pdf']) {
+  for (const name of ['sample-humantrak.pdf', 'sample-blood.pdf', 'sample-bca.pdf']) {
     try {
       const r = await fetch('/' + name);
       if (!r.ok) continue;
@@ -452,13 +485,10 @@ document.getElementById('loadSamples').addEventListener('click', async () => {
       await handleFile(new File([blob], name, { type: 'application/pdf' }));
     } catch (e) { /* skip */ }
   }
-  // also load Anandan T. mock for nutrition + wellbeing
-  document.getElementById('bc_wt').value = 85.8;
-  document.getElementById('bc_bmi').value = 29.0;
-  document.getElementById('bc_bf').value = 28.4;
-  document.getElementById('bc_vf').value = 12;
-  document.getElementById('bc_mm').value = 53.2;
-  document.getElementById('bc_a1c').value = 6.0;
+  // Visceral fat + HbA1c aren't in the BCA table; pre-fill the rest only if BCA didn't.
+  const setIfEmpty = (id, v) => { const e = document.getElementById(id); if (e && !e.value) e.value = v; };
+  setIfEmpty('bc_vf', 9);     // From the BCA "Keep Monitoring" text
+  setIfEmpty('bc_a1c', 6.0);  // Carried from Anandan T. mock for demo only
   document.getElementById('pss').value = 26;
   document.getElementById('psqi').value = 13;
   [4,4,5,4,5,3,4,3,4,2].forEach((v, i) => {
@@ -513,6 +543,9 @@ document.getElementById('generate').addEventListener('click', () => {
       asymmetry: d.asymmetry, tier: d.tier,
     }));
   baseline.dynamo = dynamoRows;
+
+  // Carry VALD test objects (including page thumbnails) for the gallery page
+  baseline.vald_tests = state.vald.tests;
 
   // Questionnaire
   baseline.questionnaire = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
@@ -578,7 +611,8 @@ document.getElementById('generate').addEventListener('click', () => {
       programme: { pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness' }[state.pkg],
     },
     movement: { baseline },
-    blood: { section_num: '02', meta: state.blood.meta, values: state.blood.values, pending: [] },
+    bca: state.bca ? { section_num: '02', ...state.bca } : null,
+    blood: { section_num: state.bca ? '03' : '02', meta: state.blood.meta, values: state.blood.values, pending: [] },
     nutrition: { body_comp,
       nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 50, tier: nmBand.tier, label: nmBand.label } : null,
       nutrimeter_responses: nm,

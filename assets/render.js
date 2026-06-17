@@ -360,6 +360,75 @@
     return [node, node2];
   }
 
+  // ----- Movement gallery: rep photos extracted from the VALD HumanTrak PDF -----
+  function renderMovementGallery(c) {
+    const tests = c.movement && c.movement.baseline && c.movement.baseline.vald_tests;
+    if (!tests) return null;
+    const withImg = Object.values(tests).filter(t => t && t.image);
+    if (!withImg.length) return null;
+    const node = el('div', { class: 'page' }, [
+      brandBand(),
+      el('div', { class: 'section-bar' }, 'HUMANTRAK — REP SNAPSHOTS'),
+      el('p', { class: 'intro' }, 'Reference frames from the HumanTrak motion-capture session. Captured at the rep that produced the peak value for each test.'),
+    ]);
+    const grid = el('div', { style: 'display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px;' });
+    for (const t of withImg) {
+      const card = el('div', { style: 'background:#fff; border:1px solid var(--tml-line); border-radius:4px; padding:10px;' }, [
+        el('div', { style: 'font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tml-burgundy); font-weight: 600; margin-bottom: 6px;' }, t.title || ''),
+        el('img', { src: t.image, alt: t.title || '', style: 'width: 100%; display: block; border-radius: 3px;' }),
+        el('div', { style: 'font-size: 9pt; color: var(--tml-muted); margin-top: 6px;' },
+          [t.peak != null ? `Peak ${t.peak}` : (t.left != null ? `L ${t.left} / R ${t.right}` : ''),
+           t.avg != null ? `Avg ${t.avg}` : '',
+           t.asymmetry != null ? `Asymmetry ${t.asymmetry}%` : ''].filter(Boolean).join('  ·  ')),
+      ]);
+      grid.appendChild(card);
+    }
+    node.appendChild(grid);
+    node.appendChild(pageFoot());
+    return node;
+  }
+
+  // ----- BCA (Body Composition Analysis) — separate page when supplied -----
+  function renderBCA(c) {
+    const b = c.bca;
+    if (!b) return null;
+    const node = el('div', { class: 'page' }, [
+      brandBand(),
+      el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, b.section_num || '02'), '  BODY COMPOSITION ANALYSIS']),
+      el('p', { class: 'intro' }, 'Body composition assessed via bioimpedance analysis. Values, units, and clinical status as reported by the BCA device; each parameter is colour-coded against the device-supplied band.'),
+    ]);
+    if (b.summary) {
+      node.appendChild(el('div', { class: 'subhead' }, 'Health Summary'));
+      node.appendChild(el('p', { style: 'font-size:10pt; line-height: 1.55;' }, b.summary));
+    }
+    if (b.critical && (b.critical.immediate || b.critical.monitoring)) {
+      node.appendChild(el('div', { class: 'subhead' }, 'Critical Findings'));
+      const grid = el('div', { class: 'two-col' });
+      grid.appendChild(el('div', {}, [
+        el('div', { class: 'title', style: 'color: var(--st-orange);' }, 'Immediate Attention'),
+        el('p', { style: 'font-size:9.5pt; margin:0; line-height: 1.5;' }, b.critical.immediate || '—'),
+      ]));
+      grid.appendChild(el('div', {}, [
+        el('div', { class: 'title', style: 'color: var(--st-yellow);' }, 'Keep Monitoring'),
+        el('p', { style: 'font-size:9.5pt; margin:0; line-height: 1.5; white-space: pre-line;' }, b.critical.monitoring || '—'),
+      ]));
+      node.appendChild(grid);
+    }
+    if (b.metrics && b.metrics.length) {
+      node.appendChild(el('div', { class: 'subhead' }, 'Overall Body Composition'));
+      const rows = b.metrics.map(m => [
+        m.metric,
+        m.value || '—',
+        m.unit || '',
+        m.status || '—',
+        statusPill(m.tier),
+      ]);
+      node.appendChild(tableRows(['Metric', 'Value', 'Unit', 'Reported Status', 'TML Tier'], rows));
+    }
+    node.appendChild(pageFoot());
+    return node;
+  }
+
   // ----- Nutrition -----
   function renderNutrition(c) {
     const n = c.nutrition || {};
@@ -575,11 +644,19 @@
     if (include.includes('background')) host.appendChild(renderBackground(caseData));
     if (include.includes('summary'))    host.appendChild(renderSummary(caseData));
     if (include.includes('movement'))   renderMovement(caseData).forEach(p => host.appendChild(p));
+    if (include.includes('bca') && caseData.bca) {
+      const bcaPage = renderBCA(caseData);
+      if (bcaPage) host.appendChild(bcaPage);
+    }
+    if (include.includes('movement_images')) {
+      const gallery = renderMovementGallery(caseData);
+      if (gallery) host.appendChild(gallery);
+    }
     if (include.includes('nutrition'))  host.appendChild(renderNutrition(caseData));
     if (include.includes('wellbeing'))  host.appendChild(renderWellbeing(caseData));
     if (include.includes('blood') && caseData.blood)     host.appendChild(renderBlood(caseData));
     if (include.includes('integrated')) host.appendChild(renderIntegrated(caseData));
   }
 
-  window.TML_RENDER = { render, renderCover, renderBackground, renderSummary, renderMovement, renderNutrition, renderWellbeing, renderBlood, renderIntegrated };
+  window.TML_RENDER = { render, renderCover, renderBackground, renderSummary, renderMovement, renderMovementGallery, renderBCA, renderNutrition, renderWellbeing, renderBlood, renderIntegrated };
 })();

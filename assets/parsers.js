@@ -343,7 +343,30 @@
         title: testName,
         peak, avg, left: leftV, right: rightV,
         asymmetry: asym, dominant,
+        page: p,
       };
+
+      // Render the rep-photo region as a thumbnail for the TML report.
+      // PDF.js canvas has y=0 at top; rep-photo card sits at top-origin y≈130-320.
+      try {
+        const renderScale = 1.2;
+        const renderVp = page.getViewport({ scale: renderScale });
+        const canvas = document.createElement('canvas');
+        canvas.width = renderVp.width;
+        canvas.height = renderVp.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: renderVp }).promise;
+        // Crop coords in unscaled PDF top-origin space; multiplied by renderScale below.
+        const cropPdf = { x: 28, y: 130, w: 340, h: 200 };
+        const out = document.createElement('canvas');
+        out.width  = Math.round(cropPdf.w * renderScale);
+        out.height = Math.round(cropPdf.h * renderScale);
+        out.getContext('2d').drawImage(canvas,
+          cropPdf.x * renderScale, cropPdf.y * renderScale,
+          cropPdf.w * renderScale, cropPdf.h * renderScale,
+          0, 0, out.width, out.height
+        );
+        tests[key].image = out.toDataURL('image/jpeg', 0.72);
+      } catch (e) { console.warn('thumb extract failed for', testName, e); }
     }
 
     return { source: 'vald-humantrak', patient, meta, tests };
@@ -365,6 +388,137 @@
     return null;
   }
 
+  // ---------- FITTR BCA parser ----------
+  // FITTR Body Composition Analysis. We extract:
+  //   - Health Summary paragraph (page 5)
+  //   - Critical Findings: Immediate Attention + Keep Monitoring blocks (page 6)
+  //   - Overall Body Composition table (page 7): Metric | Value | Unit | Status
+  async function parseFITTR_BCA(file) {
+    if (!window.pdfjsLib) throw new Error("pdf.js not loaded");
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const out = {
+      source: 'fittr-bca',
+      patient: {},
+      summary: '',
+      critical: { immediate: '', monitoring: '' },
+      metrics: [],   // [{ metric, value, unit, status, tier }]
+    };
+
+    // Patient name from any page header (right side: "Jagan | 26 Yrs")
+    const grabPatient = (items) => {
+      if (out.patient.name) return;
+      const header = items.filter(it => it.y < 60 && it.x > 400);
+      if (!header.length) return;
+      // FITTR pattern: spans "Jagan", "| 26", "Yrs" at separate x — sort by x and join.
+      header.sort((a, b) => a.x - b.x);
+      const joined = header.map(h => h.s).join(' ').replace(/\s+/g, ' ').trim();
+      const m = joined.match(/^([A-Za-z][A-Za-z\s.]+?)\s*\|\s*(\d+)\s*Yrs/);
+      if (m) { out.patient.name = m[1].trim(); out.patient.age = parseInt(m[2]); }
+    };
+
+    // Helper: group spans into visual lines and stitch text within each line
+    const linesFrom = (items, xMin = 0, xMax = 9999, yMin = 0, yMax = 9999) => {
+      const filt = items.filter(it => it.x >= xMin && it.x <= xMax && it.y >= yMin && it.y <= yMax);
+      filt.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      const lines = [];
+      let cur = [], lastY = null;
+      for (const it of filt) {
+        if (lastY == null || Math.abs(it.y - lastY) <= 4) cur.push(it);
+        else { if (cur.length) lines.push(cur); cur = [it]; }
+        lastY = it.y;
+      }
+      if (cur.length) lines.push(cur);
+      return lines.map(L => L.map(it => it.s).join(' ').replace(/\s+([,.;:])/g, '$1').replace(/\s+/g, ' ').trim());
+    };
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      const items = content.items.map(it => ({
+        s: it.str,
+        x: Math.round(it.transform[4]),
+        // pdf.js y is from bottom; convert to top-origin to match the layout dump
+        y: Math.round(vp.height - it.transform[5]),
+      })).filter(it => it.s.trim());
+
+      grabPatient(items);
+
+      const title = items.find(it => it.y < 130 && it.x < 250);
+      if (!title) continue;
+      const head = items.filter(it => it.y < 130 && it.x < 280).map(it => it.s).join(' ').trim();
+
+      // Page 5: Health Summary
+      if (/Your\s+Health\s+Summary/i.test(head)) {
+        const lines = linesFrom(items, 60, 450, 140, 720);
+        out.summary = lines.join(' ').replace(/\s+([,.;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+      }
+      // Page 6: Critical Findings — two sections, two columns
+      if (/Critical\s+Findings/i.test(head)) {
+        // Immediate Attention paragraph: y=210-400, x<280
+        const im = linesFrom(items, 20, 290, 200, 410);
+        out.critical.immediate = im.join(' ').replace(/\s+([,.;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+        // Keep monitoring left column + right column + bottom paragraph
+        const monL = linesFrom(items, 20, 290, 450, 560);
+        const monR = linesFrom(items, 300, 580, 450, 560);
+        const monB = linesFrom(items, 20, 290, 570, 660);
+        const parts = [monL, monR, monB].map(arr => arr.join(' ').replace(/\s{2,}/g, ' ').trim()).filter(Boolean);
+        out.critical.monitoring = parts.join('  \n\n').replace(/\s+([,.;:])/g, '$1');
+      }
+      // Page 7: Overall Body Composition table
+      if (/Overall\s+Body\s+Composition/i.test(head)) {
+        // Group spans by y into rows
+        const rowItems = items.filter(it => it.y > 160 && it.y < 720);
+        rowItems.sort((a, b) => a.y - b.y);
+        const rows = [];
+        let cur = [], lastY = null;
+        for (const it of rowItems) {
+          if (lastY == null || Math.abs(it.y - lastY) <= 4) cur.push(it);
+          else { if (cur.length) rows.push(cur); cur = [it]; }
+          lastY = it.y;
+        }
+        if (cur.length) rows.push(cur);
+
+        for (const row of rows) {
+          // skip header
+          const txtAll = row.map(it => it.s).join(' ').trim();
+          if (/^Metric\s+Name/i.test(txtAll)) continue;
+          // Column splits: Metric x<260, Value 260<x<380, Unit 380<x<450, Status x>=450
+          const cells = (lo, hi) => row.filter(it => it.x >= lo && it.x < hi).map(it => it.s).join(' ').replace(/\s+/g, ' ').trim();
+          const metric = cells(0, 260);
+          const value  = cells(260, 380);
+          const unit   = cells(380, 450);
+          const status = cells(450, 9999);
+          if (!metric || (!value && !status)) continue;
+          out.metrics.push({
+            metric,
+            value: value,
+            value_num: parseFloat(value),
+            unit,
+            status,
+            tier: fittrStatusToTier(status, metric),
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  function fittrStatusToTier(status, metric) {
+    if (!status) return null;
+    const s = status.toLowerCase().trim();
+    if (/^normal$|^healthy$|^within\s+range$/.test(s)) return 'green';
+    if (/^lean$/.test(s)) {
+      // "Lean" on skeletal muscle % is good; on lean mass context is neutral. Default green.
+      return 'green';
+    }
+    if (/^average$/.test(s)) return 'yellow';
+    if (/^underweight$|^overweight$|^high$|^low$|^elevated$/.test(s)) return 'orange';
+    if (/needs\s+attention/i.test(s)) return 'orange';
+    return null;
+  }
+
   // ---------- PDF source detection ----------
   // Look at the first page's text to decide which parser to invoke.
   async function detectPdfSource(file) {
@@ -378,6 +532,16 @@
     if (/powered by\s*vald|practitioner:|sit to stand|trunk flexion/.test(text)) return 'vald-humantrak';
     if (/hitech|biological reference interval/.test(text)) return 'hitech-blood';
     if (/biological reference interval|investigation\s+observed value/.test(text)) return 'generic-blood';
+    // FITTR BCA: cover page text is sparse, so scan the first few pages for fingerprints.
+    let fittr = /fittr|your health\s+report/i.test(text);
+    if (!fittr && pdf.numPages >= 7) {
+      for (const p of [5, 7]) {
+        const c2 = await (await pdf.getPage(p)).getTextContent();
+        const t2 = c2.items.map(it => it.str).join(' ').toLowerCase();
+        if (/your\s+health\s+summary|overall\s+body\s+composition|skeletal muscle/.test(t2)) { fittr = true; break; }
+      }
+    }
+    if (fittr) return 'fittr-bca';
     // Image-only pdf (Dynamo) — no text at all
     if (text.trim().length < 50) return 'image-only';
     return 'unknown';
@@ -394,6 +558,9 @@
       if (src === 'vald-humantrak') {
         return await parseVALDHumantrak(file);
       }
+      if (src === 'fittr-bca') {
+        return await parseFITTR_BCA(file);
+      }
       if (src === 'image-only') {
         return { source: 'image-only', error: 'PDF is image-only (no extractable text). Enter values manually.' };
       }
@@ -408,5 +575,5 @@
     throw new Error("Unsupported file type: " + ext);
   }
 
-  window.TML_PARSERS = { parseFile, parseExcel, parseHitechPdf, parseGenericLabPdf, parseVALDHumantrak, detectPdfSource, aliasKey, BIOMARKER_ALIASES, testKey };
+  window.TML_PARSERS = { parseFile, parseExcel, parseHitechPdf, parseGenericLabPdf, parseVALDHumantrak, parseFITTR_BCA, detectPdfSource, aliasKey, BIOMARKER_ALIASES, testKey, fittrStatusToTier };
 })();
