@@ -1,0 +1,306 @@
+// TML scoring engine.
+// All thresholds are in one place so the clinical team can tune them.
+// 4-tier: 'green' (4) | 'yellow' (3) | 'orange' (2) | 'red' (1)
+
+const TIER = { green: 4, yellow: 3, orange: 2, red: 1 };
+const tierFromScore = (s) => ({4:'green',3:'yellow',2:'orange',1:'red'}[s]);
+
+// -----------------------------------------------------------------------------
+// Movement: per-test thresholds.
+// Reference ranges come from the TML mock template where specified;
+// asymmetry % defaults follow standard sports-med convention.
+// -----------------------------------------------------------------------------
+
+const MOVEMENT_TESTS = {
+  // Balance — ellipse area asymmetry (eyes closed)
+  balanceAsymmetry: {
+    label: "Single-Leg Balance Asymmetry (COM ellipse)",
+    unit: "%",
+    score: (pct) => pct == null ? null
+      : pct < 10 ? 'green' : pct < 15 ? 'yellow' : pct < 25 ? 'orange' : 'red',
+  },
+  // Posture — shoulder drop in frontal plane
+  shoulderDrop: {
+    label: "Shoulder Drop (frontal)",
+    unit: "cm",
+    score: (cm) => cm == null ? null
+      : cm < 1.0 ? 'green' : cm < 2.0 ? 'yellow' : cm < 3.0 ? 'orange' : 'red',
+  },
+  // Neck ROM lateral flexion (avg of L/R)
+  neckLatFlex: {
+    label: "Neck Lateral Flexion (avg)",
+    unit: "°",
+    ref: "56–65°",
+    score: (deg) => deg == null ? null
+      : deg >= 56 ? 'green' : deg >= 45 ? 'yellow' : deg >= 30 ? 'orange' : 'red',
+  },
+  neckRotation: {
+    label: "Neck Rotation (avg)",
+    unit: "°",
+    ref: "66–75°",
+    score: (deg) => deg == null ? null
+      : deg >= 66 ? 'green' : deg >= 55 ? 'yellow' : deg >= 40 ? 'orange' : 'red',
+  },
+  // Trunk
+  trunkExtension: {
+    label: "Trunk Extension",
+    unit: "°",
+    ref: "26–45°",
+    score: (deg) => deg == null ? null
+      : deg >= 26 ? 'green' : deg >= 20 ? 'yellow' : deg >= 12 ? 'orange' : 'red',
+  },
+  trunkLatFlex: {
+    label: "Trunk Lateral Flexion (avg)",
+    unit: "°",
+    ref: "26–45°",
+    score: (deg) => deg == null ? null
+      : deg >= 26 ? 'green' : deg >= 20 ? 'yellow' : deg >= 12 ? 'orange' : 'red',
+  },
+  trunkRotation: {
+    label: "Trunk Rotation (avg)",
+    unit: "°",
+    ref: "31–45°",
+    score: (deg) => deg == null ? null
+      : deg >= 31 ? 'green' : deg >= 24 ? 'yellow' : deg >= 16 ? 'orange' : 'red',
+  },
+  // Dynamic lower body
+  squatKneeFlexion: {
+    label: "Overhead Squat — Knee Flexion (max)",
+    unit: "°",
+    score: (deg) => deg == null ? null
+      : deg >= 110 ? 'green' : deg >= 100 ? 'yellow' : deg >= 85 ? 'orange' : 'red',
+  },
+  squatAsymmetry: {
+    label: "Overhead Squat — L/R Asymmetry",
+    unit: "%",
+    score: (pct) => pct == null ? null
+      : pct < 5 ? 'green' : pct < 8 ? 'yellow' : pct < 15 ? 'orange' : 'red',
+  },
+  sitToStand: {
+    label: "Sit-to-Stand × 5",
+    unit: "s",
+    score: (s) => s == null ? null
+      : s < 9 ? 'green' : s < 12 ? 'yellow' : s < 15 ? 'orange' : 'red',
+  },
+  countermovementJump: {
+    label: "Countermovement Jump",
+    unit: "cm",
+    score: (cm) => cm == null ? null
+      : cm >= 35 ? 'green' : cm >= 28 ? 'yellow' : cm >= 20 ? 'orange' : 'red',
+  },
+  // Strength
+  gripAsymmetry: {
+    label: "Grip Strength Asymmetry",
+    unit: "%",
+    score: (pct) => pct == null ? null
+      : pct < 10 ? 'green' : pct < 15 ? 'yellow' : pct < 25 ? 'orange' : 'red',
+  },
+  quadAsymmetry: {
+    label: "Quadriceps Asymmetry",
+    unit: "%",
+    score: (pct) => pct == null ? null
+      : pct < 8 ? 'green' : pct < 15 ? 'yellow' : pct < 25 ? 'orange' : 'red',
+  },
+};
+
+// Movement subjective questionnaire (12 items, each 1-4)
+// Wording follows the template literally; "score" is 1=Always..4=Never (with sign flip for "good" items)
+const MOVEMENT_QUESTIONNAIRE = [
+  { id: 1, q: "Pain in back, neck or hands after sitting continuously for 2 hours", reverse: false },
+  { id: 2, q: "Posture starting to slump after 2 hours of sitting", reverse: false },
+  { id: 3, q: "Sitting >2 hours without breaks (stand, stretch, walk)", reverse: false },
+  { id: 4, q: "Focus disturbed due to bodily discomfort", reverse: false },
+  { id: 5, q: "Exercising every day", reverse: true },
+  { id: 6, q: "Body region feels stiff and tight", reverse: false },
+  { id: 7, q: "Experience muscle cramps", reverse: false },
+  { id: 8, q: "Need to adjust sitting position frequently due to discomfort", reverse: false },
+  { id: 9, q: "Tendency to lean forward toward the screen while working", reverse: false },
+  { id: 10, q: "Fingers/wrists sore after typing for long periods", reverse: false },
+  { id: 11, q: "Cross legs while sitting", reverse: false },
+  { id: 12, q: "Numbness, tingling or radiating pain in arms or legs", reverse: false },
+];
+// answers: { always:1, more_freq:2, rarely:3, never:4 } — reverse-coded for "good" items
+function scoreMovementQuestion(answerKey, reverse) {
+  const map = { always: 1, more_freq: 2, rarely: 3, never: 4 };
+  let v = map[answerKey];
+  if (v == null) return null;
+  if (reverse) v = 5 - v;
+  return v;
+}
+
+// Composite: each of N components scored 1-4, summed, then proportionally scaled to 100.
+// Template wording: "24 components, max 96. Banded 25-50 / 51-75 / 76-100."
+function movementComposite(testScores, qScores) {
+  const allValues = [...testScores, ...qScores].filter(x => x != null);
+  if (!allValues.length) return null;
+  const n = allValues.length;
+  const sum = allValues.reduce((a, b) => a + b, 0);
+  const max = n * 4;
+  // Template: total out of 100 (24*4=96 ≈ 100, but the template presented 46/100 explicitly).
+  // We replicate by scaling sum→100 against the theoretical max of 100.
+  const scaled = Math.round((sum / max) * 100);
+  return { sum, max, scaled, n };
+}
+
+function movementBand(scaled100) {
+  if (scaled100 == null) return null;
+  if (scaled100 <= 50) return { tier: 'red',    label: 'Urgent Intervention',     blurb: 'Poor mobility & function. At risk of worsening symptoms or injury. Programme participation MANDATORY.' };
+  if (scaled100 <= 75) return { tier: 'orange', label: 'Significant Issue',       blurb: 'Early functional limitations. Symptoms increasing with work duration. Programme participation STRONGLY RECOMMENDED.' };
+  return { tier: 'green', label: 'Normal',                              blurb: 'Good mobility & function. No major work limitations. Programme participation OPTIONAL but ENCOURAGED.' };
+}
+
+// -----------------------------------------------------------------------------
+// Nutri Meter (10 items, 1-5 each)
+// -----------------------------------------------------------------------------
+const NUTRI_METER_QUESTIONS = [
+  "I feel mentally exhausted and unable to give my best at work",
+  "I struggle to concentrate without getting easily distracted during work",
+  "I experience an afternoon energy crash that affects my work",
+  "I wake up feeling unrefreshed even after a full night's sleep",
+  "I struggle to fall asleep or feel 'tired but wired' at night",
+  "I experience bloating, heaviness or discomfort after meals",
+  "I frequently crave sugar, caffeine or salty foods to get through the day",
+  "My mood feels harder to manage than usual",
+  "I feel physically tired even after normal daily activities",
+  "I notice changes like dull skin, dryness or acne more than usual",
+];
+function nutriMeterBand(total) {
+  if (total == null) return null;
+  if (total <= 20) return { tier: 'green',  label: 'Optimal Nourishment',     blurb: 'Patterns support energy, focus and recovery. Habits aligned with good wellbeing.' };
+  if (total <= 35) return { tier: 'yellow', label: 'Compromised Nourishment', blurb: 'Subtle signs that nutrition may be affecting concentration, performance and overall health.' };
+  return { tier: 'red', label: 'Impaired Nourishment', blurb: 'Symptom combination may be affecting recovery, mental clarity and day-to-day performance.' };
+}
+
+// -----------------------------------------------------------------------------
+// PSS-10 (0-40) — standard scoring (items 4,5,7,8 reverse-coded)
+// -----------------------------------------------------------------------------
+function pss10Band(total) {
+  if (total == null) return null;
+  if (total <= 13) return { tier: 'green',  label: 'Low perceived stress' };
+  if (total <= 26) return { tier: 'yellow', label: 'Moderate stress' };
+  return { tier: 'red', label: 'High perceived stress' };
+}
+
+// -----------------------------------------------------------------------------
+// PSQI (0-21) — cutoff 5
+// -----------------------------------------------------------------------------
+function psqiBand(total) {
+  if (total == null) return null;
+  if (total <= 5)  return { tier: 'green',  label: 'Good sleep quality' };
+  if (total <= 10) return { tier: 'yellow', label: 'Poor sleep — mild' };
+  if (total <= 15) return { tier: 'orange', label: 'Poor sleep — moderate' };
+  return { tier: 'red', label: 'Poor sleep — severe' };
+}
+
+// -----------------------------------------------------------------------------
+// Body composition / metabolic
+// -----------------------------------------------------------------------------
+const BODY_COMP = {
+  bmi: (v) => v == null ? null
+    : v < 18.5 ? 'orange' : v < 25 ? 'green' : v < 30 ? 'yellow' : v < 35 ? 'orange' : 'red',
+  bodyFatPctMale:   (v) => v == null ? null : v < 20 ? 'green' : v < 25 ? 'yellow' : v < 30 ? 'orange' : 'red',
+  bodyFatPctFemale: (v) => v == null ? null : v < 28 ? 'green' : v < 33 ? 'yellow' : v < 39 ? 'orange' : 'red',
+  visceralFat:      (v) => v == null ? null : v < 10 ? 'green' : v < 13 ? 'yellow' : v < 18 ? 'orange' : 'red',
+  hba1c:            (v) => v == null ? null : v < 5.7 ? 'green' : v < 6.5 ? 'yellow' : v < 8.0 ? 'orange' : 'red',
+  fastingGlucose:   (v) => v == null ? null : v < 100 ? 'green' : v < 126 ? 'yellow' : v < 180 ? 'orange' : 'red',
+};
+
+// -----------------------------------------------------------------------------
+// Blood biomarker bands
+// Each biomarker has: label, unit, ref { lo, hi }, optional clinical bands.
+// score(value) returns 'green'/'yellow'/'orange'/'red' based on:
+//   - in [lo, hi] -> green
+//   - within ±10% of nearest bound -> yellow
+//   - within ±10–25% -> orange
+//   - >25% deviation -> red
+// Markers with explicit clinical bands (HbA1c, FPG, Vit D) override this.
+// -----------------------------------------------------------------------------
+function bandFromRange(value, lo, hi) {
+  if (value == null) return null;
+  if (value >= lo && value <= hi) return 'green';
+  const span = (hi - lo) || Math.max(Math.abs(hi), 1);
+  const dev = value < lo ? (lo - value) / span : (value - hi) / span;
+  if (dev <= 0.10) return 'yellow';
+  if (dev <= 0.25) return 'orange';
+  return 'red';
+}
+
+const BIOMARKERS = {
+  // Glucose
+  glucose_fasting:   { label: "Glucose, Fasting",       unit: "mg/dL", ref: { lo: 70, hi: 99 },
+    score: (v) => v == null ? null : v < 100 ? 'green' : v < 126 ? 'yellow' : v < 180 ? 'orange' : 'red',
+    clinical: "Normal <100; IFG 100–125; Diabetes ≥126" },
+  glucose_pp:        { label: "Glucose, Post Prandial", unit: "mg/dL", ref: { lo: 70, hi: 140 },
+    score: (v) => v == null ? null : v < 140 ? 'green' : v < 200 ? 'yellow' : v < 250 ? 'orange' : 'red',
+    clinical: "Normal <140; IGT 140–199; Diabetes ≥200" },
+  insulin_fasting:   { label: "Insulin, Fasting",       unit: "µIU/mL", ref: { lo: 2.6, hi: 24.9 } },
+  hba1c:             { label: "HbA1c",                   unit: "%", ref: { lo: 4.0, hi: 5.6 },
+    score: (v) => v == null ? null : v < 5.7 ? 'green' : v < 6.5 ? 'yellow' : v < 8.0 ? 'orange' : 'red',
+    clinical: "Normal <5.7; Pre-diabetes 5.7–6.4; Diabetes ≥6.5" },
+  // Inflammation
+  crp:               { label: "C-Reactive Protein (CRP)", unit: "mg/L", ref: { lo: 0, hi: 5.0 } },
+  esr:               { label: "ESR",                     unit: "mm/hr", ref: { lo: 0, hi: 15 } },
+  // Minerals
+  magnesium:         { label: "Magnesium, Serum",        unit: "mg/dL", ref: { lo: 1.6, hi: 2.6 } },
+  ferritin:          { label: "Ferritin",                unit: "ng/mL", ref: { lo: 30, hi: 400 } },
+  // Vitamins
+  vitd:              { label: "Vitamin D (25-OH)",       unit: "ng/mL", ref: { lo: 30, hi: 100 },
+    score: (v) => v == null ? null : v >= 30 && v <= 100 ? 'green' : v >= 20 ? 'orange' : 'red',
+    clinical: "Deficiency <20; Insufficiency 20–30; Sufficiency 30–100" },
+  vite:              { label: "Vitamin E",               unit: "mg/L", ref: { lo: 5.5, hi: 18 } },
+  vitb12:            { label: "Vitamin B12",             unit: "pg/mL", ref: { lo: 200, hi: 900 } },
+  zinc:              { label: "Zinc, Serum",             unit: "µg/dL", ref: { lo: 70, hi: 120 } },
+  // CBC
+  hb:                { label: "Haemoglobin (Hb)",        unit: "g/dL", ref: { lo: 13.0, hi: 17.0 } },
+  rbc:               { label: "RBC Count",                unit: "mill/cu.mm", ref: { lo: 4.5, hi: 5.5 } },
+  pcv:               { label: "PCV (Hematocrit)",         unit: "%", ref: { lo: 40, hi: 50 } },
+  mcv:               { label: "MCV",                      unit: "fL", ref: { lo: 83, hi: 101 } },
+  mch:               { label: "MCH",                      unit: "pg", ref: { lo: 27, hi: 32 } },
+  mchc:              { label: "MCHC",                     unit: "g/dL", ref: { lo: 31.5, hi: 34.5 } },
+  rdw:               { label: "RDW",                      unit: "%", ref: { lo: 11.6, hi: 14.0 } },
+  wbc:               { label: "Total Leucocytes (WBC)",   unit: "cells/cu.mm", ref: { lo: 4000, hi: 11000 } },
+  neutrophils_abs:   { label: "Abs. Neutrophils",         unit: "cells/cu.mm", ref: { lo: 2000, hi: 7000 } },
+  lymphocytes_abs:   { label: "Abs. Lymphocytes",         unit: "cells/cu.mm", ref: { lo: 1000, hi: 3000 } },
+  monocytes_abs:     { label: "Abs. Monocytes",           unit: "cells/cu.mm", ref: { lo: 200, hi: 1000 } },
+  eosinophils_abs:   { label: "Abs. Eosinophils",         unit: "cells/cu.mm", ref: { lo: 20, hi: 500 } },
+  basophils_abs:     { label: "Abs. Basophils",           unit: "cells/cu.mm", ref: { lo: 20, hi: 100 } },
+  neutrophils_pct:   { label: "Neutrophils",              unit: "%", ref: { lo: 40, hi: 75 } },
+  lymphocytes_pct:   { label: "Lymphocytes",              unit: "%", ref: { lo: 20, hi: 40 } },
+  monocytes_pct:     { label: "Monocytes",                unit: "%", ref: { lo: 2, hi: 10 } },
+  eosinophils_pct:   { label: "Eosinophils",              unit: "%", ref: { lo: 1, hi: 6 } },
+  basophils_pct:     { label: "Basophils",                unit: "%", ref: { lo: 0, hi: 1 } },
+  platelets:         { label: "Platelet Count",            unit: "×10³/µL", ref: { lo: 150, hi: 450 } },
+  mpv:               { label: "MPV",                      unit: "fL", ref: { lo: 6, hi: 9.5 } },
+  pdw:               { label: "PDW",                      unit: "fL", ref: { lo: 9, hi: 17 } },
+};
+
+function scoreBiomarker(key, value) {
+  const def = BIOMARKERS[key];
+  if (!def) return null;
+  if (def.score) return def.score(value);
+  return bandFromRange(value, def.ref.lo, def.ref.hi);
+}
+
+// Grouping for display
+const BIOMARKER_GROUPS = [
+  { title: "Glucose & Insulin", keys: ["glucose_fasting", "glucose_pp", "hba1c", "insulin_fasting"] },
+  { title: "Inflammation",      keys: ["crp", "esr"] },
+  { title: "Vitamins & Minerals", keys: ["vitd", "vite", "vitb12", "magnesium", "zinc", "ferritin"] },
+  { title: "CBC — Erythrocytes", keys: ["hb", "rbc", "pcv", "mcv", "mch", "mchc", "rdw"] },
+  { title: "CBC — Leucocytes (absolute)", keys: ["wbc", "neutrophils_abs", "lymphocytes_abs", "monocytes_abs", "eosinophils_abs", "basophils_abs"] },
+  { title: "CBC — Leucocytes (differential %)", keys: ["neutrophils_pct", "lymphocytes_pct", "monocytes_pct", "eosinophils_pct", "basophils_pct"] },
+  { title: "CBC — Platelets", keys: ["platelets", "mpv", "pdw"] },
+];
+
+// -----------------------------------------------------------------------------
+// Export
+// -----------------------------------------------------------------------------
+window.TML_SCORING = {
+  TIER, tierFromScore,
+  MOVEMENT_TESTS, MOVEMENT_QUESTIONNAIRE, scoreMovementQuestion,
+  movementComposite, movementBand,
+  NUTRI_METER_QUESTIONS, nutriMeterBand,
+  pss10Band, psqiBand,
+  BODY_COMP,
+  BIOMARKERS, BIOMARKER_GROUPS, scoreBiomarker, bandFromRange,
+};

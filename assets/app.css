@@ -1,0 +1,95 @@
+/* App / generator UI (not the report itself). */
+body.app {
+  margin: 0;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  color: var(--tml-ink);
+  background: var(--tml-cream);
+}
+.app-header {
+  background: var(--tml-burgundy);
+  color: var(--tml-cream);
+  padding: 16px 32px;
+  display: flex; align-items: center; gap: 16px;
+}
+.app-header .brand { font-size: 18px; font-weight: 600; letter-spacing: 0.06em; }
+.app-header .brand small { display: block; font-size: 10px; letter-spacing: 0.18em; color: var(--tml-gold); margin-top: 2px; }
+.app-header nav { margin-left: auto; display: flex; gap: 8px; }
+.app-header nav a {
+  color: var(--tml-cream); text-decoration: none; padding: 6px 12px;
+  border: 1px solid rgba(250,246,241,0.3); border-radius: 3px; font-size: 13px;
+}
+.app-header nav a.active { background: var(--tml-cream); color: var(--tml-burgundy); border-color: var(--tml-cream); font-weight: 600; }
+
+.app-container { max-width: 1100px; margin: 0 auto; padding: 32px; }
+
+h1.app-title { font-size: 28px; color: var(--tml-burgundy); margin: 0 0 4px; font-weight: 600; }
+.app-subtitle { color: var(--tml-muted); margin: 0 0 24px; }
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--tml-line);
+  border-radius: 6px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.panel h2 { font-size: 16px; margin: 0 0 12px; color: var(--tml-burgundy); }
+
+.drop {
+  border: 2px dashed var(--tml-gold);
+  background: var(--tml-cream-dark);
+  border-radius: 6px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.drop:hover, .drop.over { background: #EFE6D5; }
+.drop input { display: none; }
+.drop .big { font-size: 18px; font-weight: 600; color: var(--tml-burgundy); }
+.drop .small { color: var(--tml-muted); margin-top: 6px; font-size: 13px; }
+
+.btn {
+  background: var(--tml-burgundy); color: var(--tml-cream); border: 0;
+  padding: 10px 18px; border-radius: 3px; font-weight: 600; cursor: pointer;
+  font-size: 13px; letter-spacing: 0.04em;
+}
+.btn:hover { background: var(--tml-burgundy-dark); }
+.btn.ghost { background: transparent; color: var(--tml-burgundy); border: 1px solid var(--tml-burgundy); }
+.btn.gold  { background: var(--tml-gold); color: #1a1a1a; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+.form-grid label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tml-muted); }
+.form-grid input, .form-grid select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--tml-line); border-radius: 3px; font-size: 14px;
+  font-family: inherit;
+}
+
+.banner-phi {
+  background: #E6F4EA; color: #14532d; border: 1px solid #86efac;
+  padding: 10px 14px; border-radius: 4px; font-size: 13px; margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+}
+.banner-phi::before { content: "🔒"; }
+
+.preview-frame {
+  background: var(--tml-cream-dark);
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+table.parsed { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+table.parsed th, table.parsed td { border-bottom: 1px solid var(--tml-line); padding: 6px 8px; text-align: left; }
+table.parsed th { background: var(--tml-cream-dark); color: var(--tml-burgundy); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.missing { color: #b91c1c; font-style: italic; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.card {
+  background: #fff; border: 1px solid var(--tml-line); border-top: 4px solid var(--tml-burgundy);
+  border-radius: 6px; padding: 22px; text-decoration: none; color: inherit;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover { box-shadow: 0 6px 20px rgba(114,47,55,0.12); transform: translateY(-2px); }
+.card .num { font-size: 12px; letter-spacing: 0.18em; color: var(--tml-gold); font-weight: 600; }
+.card h3 { margin: 8px 0 6px; color: var(--tml-burgundy); font-size: 18px; }
+.card p { color: var(--tml-muted); font-size: 13px; margin: 0; }

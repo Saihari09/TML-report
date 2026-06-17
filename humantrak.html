@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML — HumanTrak Movement Report Generator</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body class="app">
+
+<header class="app-header">
+  <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
+  <nav>
+    <a href="./index.html">Home</a>
+    <a href="./blood.html">Blood</a>
+    <a href="./humantrak.html" class="active">HumanTrak</a>
+    <a href="./wellbeing.html">Wellbeing</a>
+    <a href="./template.html">Template</a>
+  </nav>
+</header>
+
+<div class="app-container">
+  <h1 class="app-title">HumanTrak Movement Report</h1>
+  <p class="app-subtitle">Movement parameters from the HumanTrak 3D motion capture system. Upload an Excel template or enter values manually. Composite score is calculated from 12 measured tests + 12 questionnaire items (max 100).</p>
+
+  <div class="banner-phi">Data never leaves your browser. All calculations happen locally.</div>
+
+  <!-- Patient -->
+  <div class="panel">
+    <h2>1. Patient details</h2>
+    <div class="form-grid">
+      <div><label>Name</label><input id="p_name" /></div>
+      <div><label>Employee ID</label><input id="p_eid" /></div>
+      <div><label>Age</label><input id="p_age" type="number" /></div>
+      <div><label>Sex</label><select id="p_sex"><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label>Department</label><input id="p_dept" /></div>
+      <div><label>Assessment Date</label><input id="p_date" type="date" /></div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="panel">
+    <h2>2. Upload HumanTrak Excel (or fill the form below)</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" />
+      <div class="big">Drop the TML HumanTrak Excel template here, or click to choose</div>
+      <div class="small">Need the template? <a href="#" id="downloadTemplate">Download blank Excel template</a></div>
+    </label>
+    <div style="margin-top:12px;">
+      <button class="btn ghost" id="loadSample">Load sample (Anandan T.)</button>
+    </div>
+  </div>
+
+  <!-- Measured tests form -->
+  <div class="panel">
+    <h2>3. Measured tests</h2>
+    <div class="form-grid">
+      <div><label>Single-Leg Balance — Right (mm²)</label><input id="bal_r" type="number" /></div>
+      <div><label>Single-Leg Balance — Left (mm²)</label><input id="bal_l" type="number" /></div>
+      <div><label>Shoulder Drop (cm)</label><input id="sh_drop" type="number" step="0.1" /></div>
+      <div><label>Neck Lat Flex — Right (°)</label><input id="ncl_r" type="number" /></div>
+      <div><label>Neck Lat Flex — Left (°)</label><input id="ncl_l" type="number" /></div>
+      <div><label>Neck Rotation — Right (°)</label><input id="ncr_r" type="number" /></div>
+      <div><label>Neck Rotation — Left (°)</label><input id="ncr_l" type="number" /></div>
+      <div><label>Trunk Extension (°)</label><input id="tk_ext" type="number" /></div>
+      <div><label>Trunk Lat Flex — Right (°)</label><input id="tkl_r" type="number" /></div>
+      <div><label>Trunk Lat Flex — Left (°)</label><input id="tkl_l" type="number" /></div>
+      <div><label>Trunk Rotation — Right (°)</label><input id="tkr_r" type="number" /></div>
+      <div><label>Trunk Rotation — Left (°)</label><input id="tkr_l" type="number" /></div>
+      <div><label>Overhead Squat — Knee Flex R (°)</label><input id="sq_r" type="number" /></div>
+      <div><label>Overhead Squat — Knee Flex L (°)</label><input id="sq_l" type="number" /></div>
+      <div><label>Sit-to-Stand × 5 (sec)</label><input id="sts" type="number" step="0.1" /></div>
+      <div><label>Countermovement Jump (cm)</label><input id="cmj" type="number" step="0.1" /></div>
+      <div><label>Grip — Right (N)</label><input id="gr_r" type="number" /></div>
+      <div><label>Grip — Left (N)</label><input id="gr_l" type="number" /></div>
+      <div><label>Quadriceps — Right (N)</label><input id="qd_r" type="number" /></div>
+      <div><label>Quadriceps — Left (N)</label><input id="qd_l" type="number" /></div>
+    </div>
+  </div>
+
+  <!-- Questionnaire -->
+  <div class="panel">
+    <h2>4. Subjective questionnaire</h2>
+    <p class="app-subtitle" style="margin:0 0 12px">For each statement, pick the frequency that best matches the patient's response.</p>
+    <table class="parsed" id="qTable"></table>
+  </div>
+
+  <div class="panel">
+    <h2>5. Generate report</h2>
+    <button class="btn" id="generate">Generate styled report</button>
+    <button class="btn ghost" id="printReport" style="margin-left:8px" disabled>Print / Save as PDF</button>
+  </div>
+  <div id="reportHost"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./assets/scoring.js"></script>
+<script src="./assets/render.js"></script>
+<script src="./assets/parsers.js"></script>
+<script src="./assets/sample-data.js"></script>
+<script>
+// Build questionnaire UI
+const qTable = document.getElementById('qTable');
+qTable.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>Always</th><th>More Freq.</th><th>Rarely</th><th>Never</th></tr></thead>';
+const qBody = document.createElement('tbody');
+TML_SCORING.MOVEMENT_QUESTIONNAIRE.forEach((q, i) => {
+  const tr = document.createElement('tr');
+  const radio = (k) => `<td style="text-align:center"><input type="radio" name="q${i}" value="${k}" /></td>`;
+  tr.innerHTML = `<td>${q.id}</td><td>${q.q}</td>${radio('always')}${radio('more_freq')}${radio('rarely')}${radio('never')}`;
+  qBody.appendChild(tr);
+});
+qTable.appendChild(qBody);
+
+// Drop handlers
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
+
+const FIELD_TO_KEY = {
+  balance_right: 'bal_r', balance_left: 'bal_l', shoulder_drop_cm: 'sh_drop',
+  neck_lat_flex_right: 'ncl_r', neck_lat_flex_left: 'ncl_l',
+  neck_rotation_right: 'ncr_r', neck_rotation_left: 'ncr_l',
+  trunk_extension: 'tk_ext',
+  trunk_lat_flex_right: 'tkl_r', trunk_lat_flex_left: 'tkl_l',
+  trunk_rotation_right: 'tkr_r', trunk_rotation_left: 'tkr_l',
+  squat_right: 'sq_r', squat_left: 'sq_l',
+  sit_to_stand: 'sts', cmj: 'cmj',
+  grip_right: 'gr_r', grip_left: 'gr_l',
+  quad_right: 'qd_r', quad_left: 'qd_l',
+};
+
+async function handleFile(file) {
+  try {
+    const r = await TML_PARSERS.parseExcel(file);
+    // expect "HumanTrak" sheet with key/value rows
+    const sheet = r.sheets['HumanTrak'] || Object.values(r.sheets)[0] || [];
+    for (const row of sheet) {
+      if (!row || row.length < 2) continue;
+      const k = String(row[0]).trim();
+      const v = row[1];
+      const elId = FIELD_TO_KEY[k];
+      if (elId && v !== '') document.getElementById(elId).value = v;
+      if (/^q(\d+)$/i.test(k)) {
+        const i = parseInt(k.slice(1)) - 1;
+        const ans = String(v).toLowerCase().trim();
+        const radio = document.querySelector(`input[name="q${i}"][value="${ans}"]`);
+        if (radio) radio.checked = true;
+      }
+    }
+  } catch (e) {
+    alert("Could not parse: " + e.message);
+  }
+}
+
+document.getElementById('downloadTemplate').addEventListener('click', e => {
+  e.preventDefault();
+  const rows = [['# TML HumanTrak Template — fill `value` column'], [], ['key','value']];
+  Object.keys(FIELD_TO_KEY).forEach(k => rows.push([k, '']));
+  for (let i = 1; i <= 12; i++) rows.push([`q${i}`, '(always|more_freq|rarely|never)']);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 22 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'HumanTrak');
+  XLSX.writeFile(wb, 'tml-humantrak-template.xlsx');
+});
+
+document.getElementById('loadSample').addEventListener('click', () => {
+  const b = TML_SAMPLE.movement.baseline;
+  document.getElementById('p_name').value = TML_SAMPLE.patient.name;
+  document.getElementById('p_age').value = TML_SAMPLE.patient.age;
+  document.getElementById('bal_r').value = b.balance.right_mm2;
+  document.getElementById('bal_l').value = b.balance.left_mm2;
+  document.getElementById('sh_drop').value = b.posture.shoulder_drop_cm;
+  document.getElementById('ncl_r').value = b.neck.lat_flex_right;
+  document.getElementById('ncl_l').value = b.neck.lat_flex_left;
+  document.getElementById('ncr_r').value = b.neck.rotation_right;
+  document.getElementById('ncr_l').value = b.neck.rotation_left;
+  document.getElementById('tk_ext').value = b.trunk.extension;
+  document.getElementById('tkl_r').value = b.trunk.lat_flex_right;
+  document.getElementById('tkl_l').value = b.trunk.lat_flex_left;
+  document.getElementById('tkr_r').value = b.trunk.rotation_right;
+  document.getElementById('tkr_l').value = b.trunk.rotation_left;
+  document.getElementById('sq_r').value = b.dynamic.squat_right_deg;
+  document.getElementById('sq_l').value = b.dynamic.squat_left_deg;
+  document.getElementById('sts').value = b.dynamic.sit_to_stand_s;
+  document.getElementById('cmj').value = b.dynamic.cmj_cm;
+  document.getElementById('gr_r').value = b.strength.grip_right_n;
+  document.getElementById('gr_l').value = b.strength.grip_left_n;
+  document.getElementById('qd_r').value = b.strength.quad_right_n;
+  document.getElementById('qd_l').value = b.strength.quad_left_n;
+  b.questionnaire.forEach((q, i) => {
+    const r = document.querySelector(`input[name="q${i}"][value="${q.answer}"]`);
+    if (r) r.checked = true;
+  });
+});
+
+document.getElementById('generate').addEventListener('click', () => {
+  const num = id => { const v = parseFloat(document.getElementById(id).value); return Number.isNaN(v) ? null : v; };
+  const asym = (a, b) => (a == null || b == null) ? null : Math.round(Math.abs(a - b) / Math.max(a, b) * 1000) / 10;
+  const balance = { right_mm2: num('bal_r'), left_mm2: num('bal_l'), asym_pct: asym(num('bal_r'), num('bal_l')) };
+  const posture = { shoulder_drop_cm: num('sh_drop') };
+  const neck = {
+    lat_flex_right: num('ncl_r'), lat_flex_left: num('ncl_l'), lat_flex_ref: "56–65",
+    lat_flex_asym: asym(num('ncl_r'), num('ncl_l')),
+    rotation_right: num('ncr_r'), rotation_left: num('ncr_l'), rotation_ref: "66–75",
+    rotation_asym: asym(num('ncr_r'), num('ncr_l')),
+  };
+  const trunk = {
+    extension: num('tk_ext'), extension_ref: "26–45",
+    lat_flex_right: num('tkl_r'), lat_flex_left: num('tkl_l'), lat_flex_ref: "26–45",
+    lat_flex_asym: asym(num('tkl_r'), num('tkl_l')),
+    rotation_right: num('tkr_r'), rotation_left: num('tkr_l'), rotation_ref: "31–45",
+    rotation_asym: asym(num('tkr_r'), num('tkr_l')),
+  };
+  const dynamic = { squat_right_deg: num('sq_r'), squat_left_deg: num('sq_l'),
+                    squat_asym: asym(num('sq_r'), num('sq_l')),
+                    sit_to_stand_s: num('sts'), cmj_cm: num('cmj') };
+  const strength = { grip_right_n: num('gr_r'), grip_left_n: num('gr_l'),
+                     grip_asym: asym(num('gr_r'), num('gr_l')),
+                     quad_right_n: num('qd_r'), quad_left_n: num('qd_l'),
+                     quad_asym: asym(num('qd_r'), num('qd_l')) };
+
+  // Score every test
+  const T = TML_SCORING.MOVEMENT_TESTS, tier = TML_SCORING.TIER;
+  const testTierToScore = (t) => tier[t] || null;
+  const testScores = [
+    T.balanceAsymmetry.score(balance.asym_pct),
+    T.shoulderDrop.score(posture.shoulder_drop_cm),
+    T.neckLatFlex.score((neck.lat_flex_right + neck.lat_flex_left)/2),
+    T.neckRotation.score((neck.rotation_right + neck.rotation_left)/2),
+    T.trunkExtension.score(trunk.extension),
+    T.trunkLatFlex.score((trunk.lat_flex_right + trunk.lat_flex_left)/2),
+    T.trunkRotation.score((trunk.rotation_right + trunk.rotation_left)/2),
+    T.squatAsymmetry.score(dynamic.squat_asym),
+    T.sitToStand.score(dynamic.sit_to_stand_s),
+    T.countermovementJump.score(dynamic.cmj_cm),
+    T.gripAsymmetry.score(strength.grip_asym),
+    T.quadAsymmetry.score(strength.quad_asym),
+  ].map(testTierToScore);
+
+  // Questionnaire scores
+  const qScores = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
+    const sel = document.querySelector(`input[name="q${i}"]:checked`);
+    if (!sel) return null;
+    return TML_SCORING.scoreMovementQuestion(sel.value, q.reverse);
+  });
+  const questionnaire = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
+    const sel = document.querySelector(`input[name="q${i}"]:checked`);
+    return { id: q.id, answer: sel ? sel.value : null, score: qScores[i] };
+  });
+
+  const comp = TML_SCORING.movementComposite(testScores.filter(x => x != null), qScores.filter(x => x != null));
+  const band = comp ? TML_SCORING.movementBand(comp.scaled) : null;
+  const composite = comp ? { sum: comp.sum, max: comp.max, scaled: comp.scaled,
+                             tier: band.tier, label: band.label } : null;
+
+  const c = {
+    patient: {
+      name: document.getElementById('p_name').value,
+      age:  document.getElementById('p_age').value,
+      sex:  document.getElementById('p_sex').value,
+      employee_id: document.getElementById('p_eid').value,
+      department:  document.getElementById('p_dept').value,
+      endpoint_date: document.getElementById('p_date').value,
+    },
+    movement: {
+      baseline: { balance, posture, neck, trunk, dynamic, strength, questionnaire, composite },
+      // endpoint omitted in single-time-point reports
+    },
+  };
+  const host = document.getElementById('reportHost');
+  host.innerHTML = '';
+  TML_RENDER.render(c, host, { include: ['cover', 'movement'] });
+  document.getElementById('printReport').disabled = false;
+  host.scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('printReport').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>

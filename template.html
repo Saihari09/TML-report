@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML Report — Template (Mr. Anandan T.)</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<style>
+  .toolbar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--tml-burgundy); color: var(--tml-cream);
+    padding: 10px 24px; display: flex; gap: 12px; align-items: center;
+    font-family: "Inter", Helvetica, Arial, sans-serif; font-size: 13px;
+  }
+  .toolbar .grow { flex: 1; }
+  .toolbar a, .toolbar button {
+    background: var(--tml-cream); color: var(--tml-burgundy);
+    border: 0; padding: 6px 12px; border-radius: 3px;
+    text-decoration: none; font-weight: 600; cursor: pointer; font-size: 12px;
+  }
+  .toolbar a.ghost { background: transparent; color: var(--tml-cream); border: 1px solid var(--tml-cream); }
+</style>
+</head>
+<body class="report">
+
+<div class="toolbar no-print">
+  <strong>TML Report Generator</strong>
+  <span style="opacity:.7">· Reference Template (Mr. Anandan T.)</span>
+  <span class="grow"></span>
+  <a class="ghost" href="./index.html">Home</a>
+  <a class="ghost" href="./blood.html">Blood</a>
+  <a class="ghost" href="./humantrak.html">HumanTrak</a>
+  <a class="ghost" href="./wellbeing.html">Wellbeing</a>
+  <button onclick="window.print()">Print / Save as PDF</button>
+</div>
+
+<main id="report"></main>
+
+<script src="./assets/scoring.js"></script>
+<script src="./assets/sample-data.js"></script>
+<script src="./assets/render.js"></script>
+<script>
+  // Render the full reference report using the embedded sample case
+  TML_RENDER.render(TML_SAMPLE, document.getElementById('report'));
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Never commit real patient data to a public Pages site
+*.pdf
+*.xlsx
+*.xls
+*.csv
+!templates/*
+.DS_Store

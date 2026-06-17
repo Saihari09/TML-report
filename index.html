@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML Report Generator</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body class="app">
+
+<header class="app-header">
+  <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
+  <nav>
+    <a href="./index.html" class="active">Home</a>
+    <a href="./template.html">Template</a>
+  </nav>
+</header>
+
+<div class="app-container">
+  <h1 class="app-title">Report Generator</h1>
+  <p class="app-subtitle">Generate styled TML wellness reports from blood, HumanTrak, and Nutrition/Mental Wellbeing data. All parsing and rendering happens in your browser — no patient data is uploaded.</p>
+
+  <div class="banner-phi">Client-side only. Patient data never leaves this device.</div>
+
+  <div class="cards">
+    <a class="card" href="./template.html">
+      <div class="num">REFERENCE</div>
+      <h3>Template Report</h3>
+      <p>The visual template (Mr. Anandan T. sample). Open this first to see the look-and-feel and the 4-tier status colour key.</p>
+    </a>
+    <a class="card" href="./blood.html">
+      <div class="num">01</div>
+      <h3>Blood Biomarkers</h3>
+      <p>Upload a Hitech Diagnostic PDF or a TML Excel template. Renders the biomarker section with reference-range based status colours.</p>
+    </a>
+    <a class="card" href="./humantrak.html">
+      <div class="num">02</div>
+      <h3>HumanTrak Movement</h3>
+      <p>Movement screening from the HumanTrak 3D motion capture system. Composite score out of 100 with the standard TML banding.</p>
+    </a>
+    <a class="card" href="./wellbeing.html">
+      <div class="num">03</div>
+      <h3>Nutrition & Mental Wellbeing</h3>
+      <p>Body composition + TML Nutri Meter + PSS-10 + PSQI. Manual entry; Excel template export coming.</p>
+    </a>
+  </div>
+
+  <div class="panel" style="margin-top: 32px;">
+    <h2>How it works</h2>
+    <ol style="margin: 0; padding-left: 18px; line-height: 1.7; font-size: 14px;">
+      <li>Pick a generator (Blood / HumanTrak / Wellbeing).</li>
+      <li>Upload the appropriate file <em>or</em> fill the form manually. Use the "Load sample" button to try it without real data.</li>
+      <li>Review the parsed values — you can edit anything before generating.</li>
+      <li>Click <strong>Generate styled report</strong>. The report renders below the form.</li>
+      <li>Click <strong>Print / Save as PDF</strong> to export. Browser print dialog → "Save as PDF".</li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <h2>Status colour key</h2>
+    <div class="status-key">
+      <div class="row"><span class="swatch green"></span><div><div class="label">GREEN — Normal</div><div class="desc">Within reference range. Good function, no immediate work limitation.</div></div></div>
+      <div class="row"><span class="swatch yellow"></span><div><div class="label">YELLOW — Mild Variance</div><div class="desc">Borderline value. Minor functional impact. Monitor and add targeted support.</div></div></div>
+      <div class="row"><span class="swatch orange"></span><div><div class="label">ORANGE — Significant</div><div class="desc">Clear deviation from norm. Early functional limitation. Structured intervention recommended.</div></div></div>
+      <div class="row"><span class="swatch red"></span><div><div class="label">RED — Urgent</div><div class="desc">Marked deficit or asymmetry. High risk of progression or injury. Mandatory clinical action.</div></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Combined report (coming)</h2>
+    <p class="app-subtitle" style="margin: 0;">Once a patient has had all three modules generated, a <em>combined</em> view will stitch them into a single TML × Client report (cover → background → summary → movement → nutrition → wellbeing → blood → integrated summary). The renderer already supports this — the UI hook is next.</p>
+  </div>
+</div>
+</body>
+</html>

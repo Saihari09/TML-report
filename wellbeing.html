@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML — Nutrition & Mental Wellbeing Report</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body class="app">
+
+<header class="app-header">
+  <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
+  <nav>
+    <a href="./index.html">Home</a>
+    <a href="./blood.html">Blood</a>
+    <a href="./humantrak.html">HumanTrak</a>
+    <a href="./wellbeing.html" class="active">Wellbeing</a>
+    <a href="./template.html">Template</a>
+  </nav>
+</header>
+
+<div class="app-container">
+  <h1 class="app-title">Nutrition & Mental Wellbeing</h1>
+  <p class="app-subtitle">Body composition, TML Nutri Meter (10-item), PSS-10 (stress) and PSQI (sleep). Upload an Excel template or fill the form.</p>
+
+  <div class="banner-phi">Data never leaves your browser.</div>
+
+  <div class="panel">
+    <h2>1. Patient details</h2>
+    <div class="form-grid">
+      <div><label>Name</label><input id="p_name" /></div>
+      <div><label>Employee ID</label><input id="p_eid" /></div>
+      <div><label>Age</label><input id="p_age" type="number" /></div>
+      <div><label>Sex</label><select id="p_sex"><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label>Department</label><input id="p_dept" /></div>
+      <div><label>Assessment Date</label><input id="p_date" type="date" /></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Body composition</h2>
+    <div class="form-grid">
+      <div><label>Weight (kg)</label><input id="bc_wt" type="number" step="0.1" /></div>
+      <div><label>BMI (kg/m²)</label><input id="bc_bmi" type="number" step="0.1" /></div>
+      <div><label>Body Fat (%)</label><input id="bc_bf" type="number" step="0.1" /></div>
+      <div><label>Visceral Fat Score</label><input id="bc_vf" type="number" step="0.1" /></div>
+      <div><label>Muscle Mass (kg)</label><input id="bc_mm" type="number" step="0.1" /></div>
+      <div><label>HbA1c (%)</label><input id="bc_a1c" type="number" step="0.1" /></div>
+      <div><label>Fasting Plasma Glucose (mg/dL)</label><input id="bc_fpg" type="number" step="0.1" /></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. TML Nutri Meter (10 items, past 3 months frequency)</h2>
+    <p class="app-subtitle" style="margin:0 0 12px">1 = Never, 5 = Always.</p>
+    <table class="parsed" id="nmTable"></table>
+    <p style="margin-top: 10px; font-size: 13px;"><strong>Total: <span id="nmTotal">—</span> / 50</strong></p>
+  </div>
+
+  <div class="panel">
+    <h2>4. PSS-10 — Perceived Stress Scale</h2>
+    <p class="app-subtitle" style="margin:0 0 12px">Enter the patient's PSS-10 total (0–40). Items 4, 5, 7, 8 should already be reverse-coded in the total.</p>
+    <div class="form-grid">
+      <div><label>PSS-10 Total</label><input id="pss" type="number" min="0" max="40" /></div>
+      <div><label>PSQI Total</label><input id="psqi" type="number" min="0" max="21" /></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>5. Generate report</h2>
+    <button class="btn ghost" id="loadSample">Load sample (Anandan T.)</button>
+    <button class="btn" id="generate" style="margin-left:8px">Generate styled report</button>
+    <button class="btn ghost" id="printReport" style="margin-left:8px" disabled>Print / Save as PDF</button>
+  </div>
+  <div id="reportHost"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./assets/scoring.js"></script>
+<script src="./assets/render.js"></script>
+<script src="./assets/parsers.js"></script>
+<script src="./assets/sample-data.js"></script>
+<script>
+// Build Nutri Meter UI
+const nmTable = document.getElementById('nmTable');
+nmTable.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>Never (1)</th><th>Rarely (2)</th><th>Sometimes (3)</th><th>Often (4)</th><th>Always (5)</th></tr></thead>';
+const nmBody = document.createElement('tbody');
+TML_SCORING.NUTRI_METER_QUESTIONS.forEach((q, i) => {
+  const tr = document.createElement('tr');
+  let cells = '';
+  for (let n = 1; n <= 5; n++) cells += `<td style="text-align:center"><input type="radio" name="nm${i}" value="${n}" /></td>`;
+  tr.innerHTML = `<td>${i+1}</td><td>${q}</td>${cells}`;
+  nmBody.appendChild(tr);
+});
+nmTable.appendChild(nmBody);
+nmTable.addEventListener('change', updateNmTotal);
+function updateNmTotal() {
+  let t = 0, missing = 0;
+  for (let i = 0; i < 10; i++) {
+    const sel = document.querySelector(`input[name="nm${i}"]:checked`);
+    if (sel) t += parseInt(sel.value); else missing++;
+  }
+  document.getElementById('nmTotal').textContent = missing ? `${t} (${missing} unanswered)` : t;
+}
+
+document.getElementById('loadSample').addEventListener('click', () => {
+  const s = TML_SAMPLE;
+  document.getElementById('p_name').value = s.patient.name;
+  document.getElementById('p_age').value = s.patient.age;
+  const bc = s.nutrition.body_comp;
+  const find = (key) => bc.find(r => r.param.toLowerCase().startsWith(key));
+  document.getElementById('bc_wt').value  = parseFloat(find('weight').baseline);
+  document.getElementById('bc_bmi').value = parseFloat(find('bmi').baseline);
+  document.getElementById('bc_bf').value  = parseFloat(find('body fat').baseline);
+  document.getElementById('bc_vf').value  = parseFloat(find('visceral').baseline);
+  document.getElementById('bc_mm').value  = parseFloat(find('muscle').baseline);
+  document.getElementById('bc_a1c').value = parseFloat(find('hba1c').baseline);
+  document.getElementById('bc_fpg').value = parseFloat(find('fasting').baseline);
+  s.nutrition.nutrimeter_responses.forEach((v, i) => {
+    const r = document.querySelector(`input[name="nm${i}"][value="${v}"]`);
+    if (r) r.checked = true;
+  });
+  document.getElementById('pss').value = 26;
+  document.getElementById('psqi').value = 13;
+  updateNmTotal();
+});
+
+document.getElementById('generate').addEventListener('click', () => {
+  const num = id => { const v = parseFloat(document.getElementById(id).value); return Number.isNaN(v) ? null : v; };
+  const tierFor = (key, v) => v == null ? null : TML_SCORING.BODY_COMP[key] ? TML_SCORING.BODY_COMP[key](v) : null;
+  const sex = (document.getElementById('p_sex').value || 'Male').toLowerCase();
+  const bodyFatKey = sex === 'female' ? 'bodyFatPctFemale' : 'bodyFatPctMale';
+
+  const body_comp = [
+    num('bc_wt')  != null && { param: 'Weight',                   baseline: `${num('bc_wt')} kg`,       endpoint: '—', delta: '—', tier: 'green' },
+    num('bc_bmi') != null && { param: 'BMI',                      baseline: `${num('bc_bmi')} kg/m²`,    endpoint: '—', delta: '—', tier: tierFor('bmi', num('bc_bmi')) },
+    num('bc_bf')  != null && { param: 'Body Fat Percentage',      baseline: `${num('bc_bf')}%`,          endpoint: '—', delta: '—', tier: tierFor(bodyFatKey, num('bc_bf')) },
+    num('bc_vf')  != null && { param: 'Visceral Fat Score',       baseline: `${num('bc_vf')}`,            endpoint: '—', delta: '—', tier: tierFor('visceralFat', num('bc_vf')) },
+    num('bc_mm')  != null && { param: 'Muscle Mass',              baseline: `${num('bc_mm')} kg`,        endpoint: '—', delta: '—', tier: 'green' },
+    num('bc_a1c') != null && { param: 'HbA1c',                    baseline: `${num('bc_a1c')}%`,         endpoint: '—', delta: '—', tier: tierFor('hba1c', num('bc_a1c')) },
+    num('bc_fpg') != null && { param: 'Fasting Plasma Glucose',   baseline: `${num('bc_fpg')} mg/dL`,    endpoint: '—', delta: '—', tier: tierFor('fastingGlucose', num('bc_fpg')) },
+  ].filter(Boolean);
+
+  // Nutri Meter
+  const nm = [];
+  for (let i = 0; i < 10; i++) {
+    const sel = document.querySelector(`input[name="nm${i}"]:checked`);
+    nm.push(sel ? parseInt(sel.value) : null);
+  }
+  const nmTotal = nm.reduce((a, b) => a + (b || 0), 0);
+  const nmBand = TML_SCORING.nutriMeterBand(nmTotal);
+
+  // PSS / PSQI
+  const pss = num('pss'); const psqi = num('psqi');
+  const pssBand = pss != null ? TML_SCORING.pss10Band(pss) : null;
+  const psqiBand = psqi != null ? TML_SCORING.psqiBand(psqi) : null;
+  const rows = [];
+  if (pss != null)  rows.push({ param: 'Perceived Stress Scale (PSS-10)', baseline: `${pss}/40`, endpoint: '—', delta: '—', tier: pssBand.tier });
+  if (psqi != null) rows.push({ param: 'Pittsburgh Sleep Quality Index (PSQI)', baseline: `${psqi}/21`, endpoint: '—', delta: '—', tier: psqiBand.tier });
+
+  const c = {
+    patient: {
+      name: document.getElementById('p_name').value,
+      age:  document.getElementById('p_age').value,
+      sex:  document.getElementById('p_sex').value,
+      employee_id: document.getElementById('p_eid').value,
+      department:  document.getElementById('p_dept').value,
+      endpoint_date: document.getElementById('p_date').value,
+    },
+    nutrition: {
+      body_comp,
+      nutrimeter_baseline: { total: nmTotal, max: 50, tier: nmBand.tier, label: nmBand.label },
+      nutrimeter_responses: nm,
+    },
+    wellbeing: { rows,
+      pss_note: pssBand ? `Band: ${pssBand.label}` : null,
+      psqi_note: psqiBand ? `Band: ${psqiBand.label}` : null,
+    },
+  };
+  const host = document.getElementById('reportHost');
+  host.innerHTML = '';
+  TML_RENDER.render(c, host, { include: ['cover', 'nutrition', 'wellbeing'] });
+  document.getElementById('printReport').disabled = false;
+  host.scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('printReport').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>

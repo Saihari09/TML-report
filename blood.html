@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML — Blood Biomarker Report Generator</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body class="app">
+
+<header class="app-header">
+  <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
+  <nav>
+    <a href="./index.html">Home</a>
+    <a href="./blood.html" class="active">Blood</a>
+    <a href="./humantrak.html">HumanTrak</a>
+    <a href="./wellbeing.html">Wellbeing</a>
+    <a href="./template.html">Template</a>
+  </nav>
+</header>
+
+<div class="app-container">
+  <h1 class="app-title">Blood Biomarker Report</h1>
+  <p class="app-subtitle">Upload a lab PDF (Hitech Diagnostic format supported) or a TML Excel template. The browser parses values locally and renders the styled TML report section.</p>
+
+  <div class="banner-phi">Data never leaves your browser. Parsing happens locally; nothing is uploaded.</div>
+
+  <!-- Step 1: patient -->
+  <div class="panel">
+    <h2>1. Patient details</h2>
+    <div class="form-grid">
+      <div><label>Name</label><input id="p_name" placeholder="Mr. / Ms. ..." /></div>
+      <div><label>Employee ID</label><input id="p_eid" /></div>
+      <div><label>Age</label><input id="p_age" type="number" /></div>
+      <div><label>Sex</label><select id="p_sex"><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div><label>Department</label><input id="p_dept" /></div>
+      <div><label>Assessment Date</label><input id="p_date" type="date" /></div>
+    </div>
+  </div>
+
+  <!-- Step 2: upload -->
+  <div class="panel">
+    <h2>2. Upload blood report</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".pdf,.xlsx,.xls,.csv" />
+      <div class="big">Drop a PDF or Excel file here, or click to choose</div>
+      <div class="small">Supported: Hitech Diagnostic PDFs · TML Excel template · CSV with marker‑name / value columns</div>
+    </label>
+    <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+      <button class="btn ghost" id="loadSample">Load sample (Ashwin Gauthaman)</button>
+      <button class="btn ghost" id="downloadXlsx">Download blank Excel template</button>
+    </div>
+  </div>
+
+  <!-- Step 3: parsed preview -->
+  <div class="panel" id="parsedPanel" style="display:none">
+    <h2>3. Parsed values</h2>
+    <p class="app-subtitle" style="margin:0 0 8px">Review and correct before generating. Click a value to edit.</p>
+    <table class="parsed" id="parsedTable"></table>
+  </div>
+
+  <!-- Step 4: generate -->
+  <div class="panel">
+    <h2>4. Generate report</h2>
+    <button class="btn" id="generate">Generate styled report</button>
+    <button class="btn ghost" id="printReport" style="margin-left:8px" disabled>Print / Save as PDF</button>
+  </div>
+
+  <div id="reportHost"></div>
+</div>
+
+<!-- libs (CDN; load only on pages that need them) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs" type="module"></script>
+<script type="module">
+  import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs";
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  window.pdfjsLib = pdfjs;
+  window.dispatchEvent(new Event('pdfjs-ready'));
+</script>
+<script src="./assets/scoring.js"></script>
+<script src="./assets/render.js"></script>
+<script src="./assets/parsers.js"></script>
+<script src="./assets/sample-data.js"></script>
+
+<script>
+let parsed = { values: {}, patient: {}, meta: {} };
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0]; if (f) handleFile(f);
+});
+
+async function handleFile(file) {
+  try {
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      await new Promise(r => window.pdfjsLib ? r() : window.addEventListener('pdfjs-ready', r, { once: true }));
+    }
+    const result = await TML_PARSERS.parseFile(file);
+    parsed = result;
+    // backfill patient name from PDF if blank
+    if (result.patient && result.patient.name && !document.getElementById('p_name').value) {
+      document.getElementById('p_name').value = result.patient.name;
+    }
+    if (result.patient && result.patient.age_sex && !document.getElementById('p_age').value) {
+      const m = String(result.patient.age_sex).match(/(\d+)/);
+      if (m) document.getElementById('p_age').value = m[1];
+    }
+    renderParsedTable();
+  } catch (e) {
+    alert("Could not parse: " + e.message);
+    console.error(e);
+  }
+}
+
+function renderParsedTable() {
+  const tbl = document.getElementById('parsedTable');
+  tbl.innerHTML = '';
+  const head = document.createElement('thead');
+  head.innerHTML = '<tr><th>Marker</th><th>Value</th><th>Unit</th><th>Reference</th><th>Status</th></tr>';
+  tbl.appendChild(head);
+  const body = document.createElement('tbody');
+  const keys = Object.keys(TML_SCORING.BIOMARKERS);
+  for (const k of keys) {
+    const def = TML_SCORING.BIOMARKERS[k];
+    const v = parsed.values[k];
+    const tr = document.createElement('tr');
+    const tier = v != null ? TML_SCORING.scoreBiomarker(k, v) : null;
+    tr.innerHTML = `
+      <td>${def.label}</td>
+      <td><input data-key="${k}" value="${v ?? ''}" style="width:90px; padding:4px 6px; border:1px solid var(--tml-line); border-radius:3px;" /></td>
+      <td>${def.unit}</td>
+      <td>${def.clinical || `${def.ref.lo}–${def.ref.hi}`}</td>
+      <td>${tier ? `<span class="status ${tier}">${tier.toUpperCase()}</span>` : '<span class="missing">—</span>'}</td>
+    `;
+    body.appendChild(tr);
+  }
+  tbl.appendChild(body);
+  body.addEventListener('input', e => {
+    const inp = e.target.closest('input[data-key]');
+    if (!inp) return;
+    const k = inp.dataset.key;
+    const num = inp.value === '' ? null : parseFloat(inp.value);
+    if (num == null) delete parsed.values[k]; else parsed.values[k] = num;
+    const tier = num != null ? TML_SCORING.scoreBiomarker(k, num) : null;
+    const tdStatus = inp.closest('tr').lastElementChild;
+    tdStatus.innerHTML = tier ? `<span class="status ${tier}">${tier.toUpperCase()}</span>` : '<span class="missing">—</span>';
+  });
+  document.getElementById('parsedPanel').style.display = '';
+}
+
+document.getElementById('loadSample').addEventListener('click', () => {
+  parsed = {
+    values: {
+      glucose_fasting: 109, glucose_pp: 92.4, insulin_fasting: 22.80,
+      crp: 4.25, magnesium: 2.4,
+      hb: 16.2, rbc: 5.42, pcv: 49.8, mcv: 91.9, mch: 29.9, mchc: 32.5, rdw: 14.3,
+      wbc: 8260, neutrophils_abs: 5443, lymphocytes_abs: 2230, monocytes_abs: 231,
+      eosinophils_abs: 322, basophils_abs: 33,
+      neutrophils_pct: 65.9, lymphocytes_pct: 27.0, monocytes_pct: 2.8, eosinophils_pct: 3.9, basophils_pct: 0.4,
+      platelets: 302, mpv: 10.7, pdw: 12.6, esr: 5,
+      ferritin: 132, vitd: 14.90,
+    },
+    patient: { name: 'Mr. Ashwin Gauthaman' },
+    meta: { lab: 'Hitech Diagnostic Centre', collected: '11 March 2026', reported: '11 March 2026', referred_by: 'Dr. Rakshith Rajaram' },
+  };
+  document.getElementById('p_name').value = 'Mr. Ashwin Gauthaman';
+  document.getElementById('p_age').value = 35;
+  renderParsedTable();
+});
+
+document.getElementById('downloadXlsx').addEventListener('click', () => {
+  const rows = [['marker_key', 'value']];
+  for (const [k, def] of Object.entries(TML_SCORING.BIOMARKERS)) {
+    rows.push([k, '']);
+  }
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['# TML Blood Template — fill the `value` column, keep marker_key as-is'],
+    [],
+    ...rows,
+  ]);
+  ws['!cols'] = [{ wch: 26 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Blood');
+  XLSX.writeFile(wb, 'tml-blood-template.xlsx');
+});
+
+document.getElementById('generate').addEventListener('click', () => {
+  const c = {
+    patient: {
+      name: document.getElementById('p_name').value,
+      age:  document.getElementById('p_age').value,
+      sex:  document.getElementById('p_sex').value,
+      employee_id: document.getElementById('p_eid').value,
+      department:  document.getElementById('p_dept').value,
+      endpoint_date: document.getElementById('p_date').value,
+    },
+    blood: {
+      section_num: '01',
+      meta: parsed.meta,
+      values: parsed.values,
+      pending: parsed.pending || [],
+    },
+  };
+  // We render a slim report: cover + background-lite + blood.
+  const host = document.getElementById('reportHost');
+  host.innerHTML = '';
+  TML_RENDER.render(c, host, { include: ['cover', 'blood'] });
+  document.getElementById('printReport').disabled = false;
+  host.scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('printReport').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>
