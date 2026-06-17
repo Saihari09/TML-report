@@ -101,6 +101,41 @@ const MOVEMENT_TESTS = {
     score: (pct) => pct == null ? null
       : pct < 8 ? 'green' : pct < 15 ? 'yellow' : pct < 25 ? 'orange' : 'red',
   },
+  // VALD HumanTrak — additional ROM tests
+  trunkFlexion: {
+    label: "Trunk Flexion",
+    unit: "°",
+    ref: "100–130°",
+    score: (deg) => deg == null ? null
+      : deg >= 100 ? 'green' : deg >= 79 ? 'yellow' : deg >= 60 ? 'orange' : 'red',
+  },
+  // Generic L/R asymmetry (used by Dynamo/VALD bilateral tests)
+  asymmetryGeneric: {
+    label: "L/R Asymmetry",
+    unit: "%",
+    score: (pct) => pct == null ? null
+      : pct < 10 ? 'green' : pct < 15 ? 'yellow' : pct < 25 ? 'orange' : 'red',
+  },
+};
+
+// Dynamo strength tests — value is the lower-side / higher-side ratio (asymmetry %).
+// Scoring is the same as asymmetryGeneric. Absolute force is reported but not banded
+// (norms depend heavily on age / sex / handedness — clinical team to tune later).
+const DYNAMO_TESTS = {
+  knee_flexion_seated:    { label: "Knee Flexion (Seated)",      unit: "kg" },
+  knee_extension_seated:  { label: "Knee Extension (Seated)",    unit: "kg" },
+  knee_extension_rom:     { label: "Knee Extension — Peak ROM",  unit: "°" },
+  knee_flexion_prone_rom: { label: "Knee Flexion — Peak ROM",    unit: "°" },
+  ankle_plantar_flexion:  { label: "Ankle Plantar Flexion",      unit: "kg" },
+  ankle_dorsiflexion:     { label: "Ankle Dorsiflexion",         unit: "kg" },
+  hip_er_force:           { label: "Hip External Rotation",      unit: "kg" },
+  hip_er_rom:             { label: "Hip External Rotation — Peak ROM", unit: "°" },
+  hip_ir_rom:             { label: "Hip Internal Rotation — Peak ROM", unit: "°" },
+  hip_extension_rom:      { label: "Hip Extension — Peak ROM",   unit: "°" },
+  hip_abd_force:          { label: "Hip Abduction (Supine)",     unit: "kg" },
+  hip_abd_rom:            { label: "Hip Abduction — Peak ROM",   unit: "°" },
+  hip_add_rom:            { label: "Hip Adduction — Peak ROM",   unit: "°" },
+  hip_flexion_rom:        { label: "Hip Flexion — Peak ROM",     unit: "°" },
 };
 
 // Movement subjective questionnaire (12 items, each 1-4)
@@ -298,6 +333,7 @@ const BIOMARKER_GROUPS = [
 window.TML_SCORING = {
   TIER, tierFromScore,
   MOVEMENT_TESTS, MOVEMENT_QUESTIONNAIRE, scoreMovementQuestion,
+  DYNAMO_TESTS,
   movementComposite, movementBand,
   NUTRI_METER_QUESTIONS, nutriMeterBand,
   pss10Band, psqiBand,

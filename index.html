@@ -23,6 +23,13 @@
 
   <div class="banner-phi">Client-side only. Patient data never leaves this device.</div>
 
+  <a class="card" href="./generator.html" style="display:block; border-top-width: 6px; padding: 28px; margin-bottom: 24px;">
+    <div class="num">★ MAIN</div>
+    <h3 style="font-size: 22px;">Unified Report Generator</h3>
+    <p style="font-size: 14px;">Drop the patient's blood and HumanTrak PDFs together, fill in the manual sections, pick the package they opted for, and generate the full TML report in one go.</p>
+  </a>
+
+  <h2 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tml-muted); margin: 32px 0 12px;">Standalone tools</h2>
   <div class="cards">
     <a class="card" href="./template.html">
       <div class="num">REFERENCE</div>
@@ -32,32 +39,21 @@
     <a class="card" href="./blood.html">
       <div class="num">01</div>
       <h3>Blood Biomarkers</h3>
-      <p>Upload a Hitech Diagnostic PDF or a TML Excel template. Renders the biomarker section with reference-range based status colours.</p>
+      <p>Standalone blood-only generator. Useful when you only have the lab PDF and want a quick biomarker page.</p>
     </a>
     <a class="card" href="./humantrak.html">
       <div class="num">02</div>
       <h3>HumanTrak Movement</h3>
-      <p>Movement screening from the HumanTrak 3D motion capture system. Composite score out of 100 with the standard TML banding.</p>
+      <p>Standalone movement generator with a 24-component composite score.</p>
     </a>
     <a class="card" href="./wellbeing.html">
       <div class="num">03</div>
       <h3>Nutrition & Mental Wellbeing</h3>
-      <p>Body composition + TML Nutri Meter + PSS-10 + PSQI. Manual entry; Excel template export coming.</p>
+      <p>Body composition + TML Nutri Meter + PSS-10 + PSQI.</p>
     </a>
   </div>
 
   <div class="panel" style="margin-top: 32px;">
-    <h2>How it works</h2>
-    <ol style="margin: 0; padding-left: 18px; line-height: 1.7; font-size: 14px;">
-      <li>Pick a generator (Blood / HumanTrak / Wellbeing).</li>
-      <li>Upload the appropriate file <em>or</em> fill the form manually. Use the "Load sample" button to try it without real data.</li>
-      <li>Review the parsed values — you can edit anything before generating.</li>
-      <li>Click <strong>Generate styled report</strong>. The report renders below the form.</li>
-      <li>Click <strong>Print / Save as PDF</strong> to export. Browser print dialog → "Save as PDF".</li>
-    </ol>
-  </div>
-
-  <div class="panel">
     <h2>Status colour key</h2>
     <div class="status-key">
       <div class="row"><span class="swatch green"></span><div><div class="label">GREEN — Normal</div><div class="desc">Within reference range. Good function, no immediate work limitation.</div></div></div>
@@ -68,8 +64,14 @@
   </div>
 
   <div class="panel">
-    <h2>Combined report (coming)</h2>
-    <p class="app-subtitle" style="margin: 0;">Once a patient has had all three modules generated, a <em>combined</em> view will stitch them into a single TML × Client report (cover → background → summary → movement → nutrition → wellbeing → blood → integrated summary). The renderer already supports this — the UI hook is next.</p>
+    <h2>How it works</h2>
+    <ol style="margin: 0; padding-left: 18px; line-height: 1.7; font-size: 14px;">
+      <li>Open the <strong>Unified Generator</strong>.</li>
+      <li>Pick the patient's package (Blood &amp; Movement Analysis / Comprehensive Movement Plan / Holistic Wellness).</li>
+      <li>Drop the blood and HumanTrak PDFs &mdash; both auto-detected and parsed.</li>
+      <li>Fill the Dynamo strength values + Nutri Meter / PSS-10 / PSQI manually (these are short).</li>
+      <li>Click <strong>Generate</strong>. The report renders below; use <em>Print &rarr; Save as PDF</em> to export.</li>
+    </ol>
   </div>
 </div>
 </body>

@@ -249,6 +249,140 @@
     return out;
   }
 
+  // ---------- VALD HumanTrak PDF parser ----------
+  // VALD reports: one test per page. Header has Patient + Last test + Practitioner.
+  // Each page has a test title at (x≈71, y≈89), then Peak/Average or Left/Right values
+  // at x≈284–428 around y≈130–200, and a "Detailed results" table at the bottom.
+  async function parseVALDHumantrak(file) {
+    if (!window.pdfjsLib) throw new Error("pdf.js not loaded");
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const patient = {};
+    const meta = {};
+    const tests = {};   // { keyed_test_name: { ... } }
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const items = content.items.map(it => ({
+        s: it.str, x: it.transform[4], y: it.transform[5]
+      })).filter(it => it.s && it.s.trim());
+
+      // Header capture (any page).
+      for (let i = 0; i < items.length - 1; i++) {
+        const s = items[i].s.trim();
+        const next = items[i+1] ? items[i+1].s.trim() : '';
+        if (/^Patient:?$/i.test(s) && !patient.name) patient.name = next;
+        if (/^DOB:?$/i.test(s) && !patient.dob) patient.dob = items[i+1].s.trim();
+        if (/^Last test:?$/i.test(s) && !meta.last_test) meta.last_test = items[i+1].s.trim();
+        if (/^Practitioner:?$/i.test(s) && !meta.practitioner) meta.practitioner = items[i+1].s.trim();
+      }
+      // Page 1 of VALD reports often has the name as a standalone item at top-left,
+      // followed by a DOB block on the line below. Grab the topmost item only.
+      if (!patient.name) {
+        const candidates = items
+          .filter(it => it.x < 200 && it.x > 80 && it.y > 700)
+          .filter(it => !/^DOB|^The Movement Lab|^Lifestyle/i.test(it.s.trim()))
+          .sort((a, b) => b.y - a.y);
+        if (candidates.length) {
+          patient.name = candidates[0].s.trim();
+        }
+      }
+      // Sanitize: strip anything starting with "DOB" / "(NN years)" / "Last test"
+      if (patient.name) {
+        patient.name = patient.name.replace(/\s*DOB[:\s].*$/i, '').replace(/\s*\(\d+\s*years?\).*$/, '').trim();
+      }
+
+      // Test title is the largest-y left-column item.
+      const title = items.find(it => it.x < 120 && it.y > 700 && it.y < 800);
+      if (!title) continue;
+      const testName = title.s.trim();
+      const key = testKey(testName);
+      if (!key) continue;
+
+      // Locate "Peak" / "Average" / "Left" / "Right" labels in the result panel (x>=280)
+      const rightCol = items.filter(it => it.x >= 270);
+      const findLabel = (re) => rightCol.find(it => re.test(it.s.trim()));
+      const pickValueNear = (label) => {
+        if (!label) return null;
+        // value sits a few lines BELOW the label (smaller y in pdfjs space)
+        const candidates = rightCol
+          .filter(it => Math.abs(it.x - label.x) < 30 && it.y < label.y && (label.y - it.y) < 30)
+          .filter(it => /^-?\d+(\.\d+)?$/.test(it.s.trim()));
+        candidates.sort((a, b) => b.y - a.y);
+        return candidates.length ? parseFloat(candidates[0].s) : null;
+      };
+
+      const peakLbl = findLabel(/^Peak$/i);
+      const avgLbl  = findLabel(/^Average$/i);
+      const leftLbl  = findLabel(/^Left$/i);
+      const rightLbl = findLabel(/^Right$/i);
+      // Sit-to-Stand uses "Test Duration" instead of Peak.
+      const durLbl = findLabel(/^Test Duration$/i);
+
+      let peak = pickValueNear(peakLbl);
+      if (peak == null) peak = pickValueNear(durLbl);
+      const avg  = pickValueNear(avgLbl);
+      const leftV = pickValueNear(leftLbl);
+      const rightV= pickValueNear(rightLbl);
+
+      // "X% greater on the [right/left] side" line. PDF.js fragments this string;
+      // join all right-column items on the line into one searchable buffer.
+      let asym = null, dominant = null;
+      const joined = rightCol.map(it => it.s).join(' ');
+      const mAsym = joined.match(/(\d+(?:\.\d+)?)\s*%\s*greater/i);
+      if (mAsym) asym = parseFloat(mAsym[1]);
+      const mDom = joined.match(/on the\s+(right|left)\s*side/i);
+      if (mDom) dominant = mDom[1].toLowerCase();
+      // Fallback: compute asymmetry from L/R if not stated
+      if (asym == null && leftV != null && rightV != null && Math.max(leftV, rightV) > 0) {
+        asym = Math.round(Math.abs(leftV - rightV) / Math.max(leftV, rightV) * 1000) / 10;
+      }
+
+      tests[key] = {
+        title: testName,
+        peak, avg, left: leftV, right: rightV,
+        asymmetry: asym, dominant,
+      };
+    }
+
+    return { source: 'vald-humantrak', patient, meta, tests };
+  }
+
+  function testKey(title) {
+    const t = title.toLowerCase().trim();
+    if (/sit to stand/.test(t)) return 'sit_to_stand';
+    if (/trunk flexion/.test(t)) return 'trunk_flexion';
+    if (/trunk extension/.test(t)) return 'trunk_extension';
+    if (/trunk lateral flexion|trunk lat/.test(t)) return 'trunk_lat_flex';
+    if (/trunk rotation|spinal rotation/.test(t)) return 'trunk_rotation';
+    if (/neck lateral flexion/.test(t)) return 'neck_lat_flex';
+    if (/neck rotation/.test(t)) return 'neck_rotation';
+    if (/overhead squat|squat/.test(t)) return 'squat';
+    if (/countermovement|cmj/.test(t)) return 'cmj';
+    if (/single.?leg balance|balance/.test(t)) return 'balance';
+    if (/shoulder drop|posture/.test(t)) return 'posture';
+    return null;
+  }
+
+  // ---------- PDF source detection ----------
+  // Look at the first page's text to decide which parser to invoke.
+  async function detectPdfSource(file) {
+    if (!window.pdfjsLib) throw new Error("pdf.js not loaded");
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+    const text = content.items.map(it => it.str).join(' ').toLowerCase();
+
+    if (/powered by\s*vald|practitioner:|sit to stand|trunk flexion/.test(text)) return 'vald-humantrak';
+    if (/hitech|biological reference interval/.test(text)) return 'hitech-blood';
+    if (/biological reference interval|investigation\s+observed value/.test(text)) return 'generic-blood';
+    // Image-only pdf (Dynamo) — no text at all
+    if (text.trim().length < 50) return 'image-only';
+    return 'unknown';
+  }
+
   // ---------- Detect & dispatch ----------
   async function parseFile(file) {
     const ext = file.name.toLowerCase().split('.').pop();
@@ -256,15 +390,23 @@
       return await parseExcel(file);
     }
     if (ext === 'pdf') {
-      // try hitech-aware first; fall back to generic.
+      const src = await detectPdfSource(file);
+      if (src === 'vald-humantrak') {
+        return await parseVALDHumantrak(file);
+      }
+      if (src === 'image-only') {
+        return { source: 'image-only', error: 'PDF is image-only (no extractable text). Enter values manually.' };
+      }
+      // Lab PDFs: try hitech-aware first; fall back to generic.
       try {
         const hi = await parseHitechPdf(file);
-        if (Object.keys(hi.values).length >= 3) return hi;
+        if (Object.keys(hi.values).length >= 3) return { source: 'hitech-blood', ...hi };
       } catch (e) { console.warn('Hitech parser failed', e); }
-      return await parseGenericLabPdf(file);
+      const g = await parseGenericLabPdf(file);
+      return { source: 'generic-blood', ...g };
     }
     throw new Error("Unsupported file type: " + ext);
   }
 
-  window.TML_PARSERS = { parseFile, parseExcel, parseHitechPdf, parseGenericLabPdf, aliasKey, BIOMARKER_ALIASES };
+  window.TML_PARSERS = { parseFile, parseExcel, parseHitechPdf, parseGenericLabPdf, parseVALDHumantrak, detectPdfSource, aliasKey, BIOMARKER_ALIASES, testKey };
 })();

@@ -211,18 +211,35 @@
     // 4. Trunk ROM
     if (b.trunk) {
       node.appendChild(el('div', { class: 'subhead' }, '4 · Trunk Range of Motion'));
-      const avgLat = (b.trunk.lat_flex_right + b.trunk.lat_flex_left) / 2;
-      const avgRot = (b.trunk.rotation_right + b.trunk.rotation_left) / 2;
-      node.appendChild(tableRows(
+      const avgLat = b.trunk.lat_flex_right != null && b.trunk.lat_flex_left != null
+        ? (b.trunk.lat_flex_right + b.trunk.lat_flex_left) / 2 : null;
+      const avgRot = b.trunk.rotation_right != null && b.trunk.rotation_left != null
+        ? (b.trunk.rotation_right + b.trunk.rotation_left) / 2 : null;
+      const rows = [];
+      if (b.trunk.flexion != null) rows.push([
+        'Trunk Flexion (Peak)', b.trunk.flexion, b.trunk.flexion_avg != null ? b.trunk.flexion_avg + ' avg' : '—',
+        b.trunk.flexion_ref || '100–130', '—',
+        statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkFlexion.score(b.trunk.flexion))
+      ]);
+      if (b.trunk.extension != null) rows.push([
+        'Trunk Extension', b.trunk.extension,
+        b.trunk.extension_avg != null ? b.trunk.extension_avg + ' avg' : '—',
+        b.trunk.extension_ref, '—',
+        statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(b.trunk.extension))
+      ]);
+      if (b.trunk.lat_flex_right != null || b.trunk.lat_flex_left != null) rows.push([
+        'Trunk Lateral Flexion', b.trunk.lat_flex_right ?? '—', b.trunk.lat_flex_left ?? '—',
+        b.trunk.lat_flex_ref, (b.trunk.lat_flex_asym ?? '—') + '%',
+        statusPill(avgLat != null ? window.TML_SCORING.MOVEMENT_TESTS.trunkLatFlex.score(avgLat) : null)
+      ]);
+      if (b.trunk.rotation_right != null || b.trunk.rotation_left != null) rows.push([
+        'Trunk Rotation', b.trunk.rotation_right ?? '—', b.trunk.rotation_left ?? '—',
+        b.trunk.rotation_ref, (b.trunk.rotation_asym ?? '—') + '%',
+        statusPill(avgRot != null ? window.TML_SCORING.MOVEMENT_TESTS.trunkRotation.score(avgRot) : null)
+      ]);
+      if (rows.length) node.appendChild(tableRows(
         ['Test', 'Right / Obs (°)', 'Left (°)', 'Reference (°)', 'Asymmetry', 'Status'],
-        [
-          ['Trunk Extension', b.trunk.extension, '—', b.trunk.extension_ref, '—',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(b.trunk.extension))],
-          ['Trunk Lateral Flexion', b.trunk.lat_flex_right, b.trunk.lat_flex_left, b.trunk.lat_flex_ref, b.trunk.lat_flex_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkLatFlex.score(avgLat))],
-          ['Trunk Rotation', b.trunk.rotation_right, b.trunk.rotation_left, b.trunk.rotation_ref, b.trunk.rotation_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkRotation.score(avgRot))],
-        ]
+        rows
       ));
     }
 
@@ -254,6 +271,19 @@
             statusPill(window.TML_SCORING.MOVEMENT_TESTS.quadAsymmetry.score(b.strength.quad_asym))],
         ]
       ));
+    }
+
+    // 6b. Dynamo strength (manual, from generator)
+    if (Array.isArray(b.dynamo) && b.dynamo.length) {
+      node.appendChild(el('div', { class: 'subhead' }, '6b · Dynamometer — Strength & ROM'));
+      const rows = b.dynamo.map(r => [
+        r.label,
+        r.left != null ? r.left + ' ' + (r.unit || '') : '—',
+        r.right != null ? r.right + ' ' + (r.unit || '') : '—',
+        r.asymmetry != null ? r.asymmetry + '%' : '—',
+        statusPill(r.tier),
+      ]);
+      node.appendChild(tableRows(['Test', 'Left', 'Right', 'Asymmetry', 'Status'], rows));
     }
 
     // 7. Questionnaire (compact)
@@ -302,13 +332,15 @@
     }
     node.appendChild(pageFoot());
 
-    // Endpoint comparison + recommendations on a second page
+    // Endpoint comparison + recommendations on a second page (omit if no endpoint data)
+    if (!m.endpoint && !(m.recs && m.recs.length)) return [node];
+
     const node2 = el('div', { class: 'page' }, [
       brandBand(),
-      el('div', { class: 'section-bar' }, 'MOVEMENT — BASELINE vs END-POINT COMPARISON'),
-      el('p', { class: 'intro' }, 'End-point measurements taken after the 12-week Thrive cycle.'),
+      el('div', { class: 'section-bar' }, m.endpoint ? 'MOVEMENT — BASELINE vs END-POINT COMPARISON' : 'MOVEMENT — RECOMMENDATIONS'),
     ]);
     if (m.endpoint) {
+      node2.appendChild(el('p', { class: 'intro' }, 'End-point measurements taken after the programme cycle.'));
       const rows = Object.entries(m.endpoint).map(([k, v]) => [
         prettyKey(k), v.baseline, v.endpoint, v.delta, statusPill(v.tier),
       ]);

@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TML Report Generator</title>
+<link rel="stylesheet" href="./assets/report.css" />
+<link rel="stylesheet" href="./assets/app.css" />
+<style>
+  .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
+  .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
+  .pkg-card:hover { border-color: var(--tml-gold); }
+  .pkg-card.selected { border-color: var(--tml-burgundy); background: var(--tml-cream-dark); }
+  .pkg-card h3 { margin: 0 0 6px; color: var(--tml-burgundy); font-size: 15px; }
+  .pkg-card .desc { font-size: 12px; color: var(--tml-muted); margin: 0 0 8px; }
+  .pkg-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pkg-card .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--tml-cream-dark); color: var(--tml-burgundy); }
+  .pkg-card.selected .tag { background: var(--tml-burgundy); color: var(--tml-cream); }
+
+  .source-list { margin-top: 12px; }
+  .source-row {
+    display: grid; grid-template-columns: 28px 1fr 140px 80px; gap: 10px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--tml-line); font-size: 13px;
+  }
+  .source-row .ico { font-size: 18px; }
+  .source-row .fname { word-break: break-all; color: var(--tml-ink); }
+  .source-row .src-type { font-size: 11px; color: var(--tml-burgundy); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .source-row .src-status { font-size: 11px; }
+  .src-status.ok { color: var(--st-green); }
+  .src-status.warn { color: var(--st-orange); }
+  .src-status.err { color: var(--st-red); }
+
+  details.collapsible { background: #fff; border: 1px solid var(--tml-line); border-radius: 6px; padding: 14px; margin-bottom: 12px; }
+  details.collapsible[open] { padding-bottom: 18px; }
+  details.collapsible summary { cursor: pointer; font-weight: 600; color: var(--tml-burgundy); }
+  details.collapsible summary .badge { float: right; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .badge.green { background: var(--st-green-bg); color: var(--st-green); }
+  .badge.muted { background: var(--tml-cream-dark); color: var(--tml-muted); }
+  .compact-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 16px; margin-top: 12px; }
+  .compact-grid label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tml-muted); }
+  .compact-grid input { width: 100%; padding: 6px 8px; border: 1px solid var(--tml-line); border-radius: 3px; font-size: 13px; }
+</style>
+</head>
+<body class="app">
+
+<header class="app-header">
+  <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
+  <nav>
+    <a href="./index.html">Home</a>
+    <a href="./generator.html" class="active">Generator</a>
+    <a href="./template.html">Template</a>
+  </nav>
+</header>
+
+<div class="app-container">
+  <h1 class="app-title">TML Report Generator</h1>
+  <p class="app-subtitle">Pick the package the patient opted for, drop their PDFs (blood + HumanTrak), fill in what's manual (Dynamo strength + questionnaires), then generate the styled report.</p>
+  <div class="banner-phi">Data never leaves your browser. All parsing and rendering happens locally.</div>
+
+  <!-- STEP 1: package -->
+  <div class="panel">
+    <h2>1. Patient & package</h2>
+    <div class="compact-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr; margin-bottom: 14px;">
+      <div><label>Patient name</label><input id="p_name" /></div>
+      <div><label>Age</label><input id="p_age" type="number" /></div>
+      <div><label>Sex</label>
+        <select id="p_sex" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-size:13px;">
+          <option>Male</option><option>Female</option><option>Other</option>
+        </select>
+      </div>
+      <div><label>Assessment date</label><input id="p_date" type="date" /></div>
+    </div>
+    <p class="app-subtitle" style="margin: 4px 0 8px;">Package determines which sections appear in the generated report.</p>
+    <div class="pkgs" id="pkgs">
+      <div class="pkg-card" data-pkg="pkg1">
+        <h3>Blood & Movement Analysis</h3>
+        <p class="desc">One-time baseline assessment.</p>
+        <div class="tags">
+          <span class="tag">Blood</span>
+          <span class="tag">Movement</span>
+        </div>
+      </div>
+      <div class="pkg-card selected" data-pkg="pkg2">
+        <h3>Comprehensive Movement Plan</h3>
+        <p class="desc">12–24 wk, includes nutrition.</p>
+        <div class="tags">
+          <span class="tag">Blood</span>
+          <span class="tag">Movement</span>
+          <span class="tag">Nutrition</span>
+        </div>
+      </div>
+      <div class="pkg-card" data-pkg="pkg3">
+        <h3>Holistic Wellness</h3>
+        <p class="desc">Full programme + mental wellbeing.</p>
+        <div class="tags">
+          <span class="tag">Blood</span>
+          <span class="tag">Movement</span>
+          <span class="tag">Nutrition</span>
+          <span class="tag">Mental</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: drop files -->
+  <div class="panel">
+    <h2>2. Drop source PDFs</h2>
+    <p class="app-subtitle" style="margin: 0 0 10px;">Supports any combination of: <strong>Hitech Diagnostic blood PDF</strong> and <strong>VALD HumanTrak PDF</strong>. Dynamo (image-only) and questionnaires go in the manual sections below.</p>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".pdf,.xlsx,.xls,.csv" multiple />
+      <div class="big">Drop one or more files here, or click to choose</div>
+      <div class="small">Each file is auto-detected and merged into the case.</div>
+    </label>
+    <div class="source-list" id="sourceList"></div>
+    <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn ghost" id="loadSamples">Load all samples</button>
+      <button class="btn ghost" id="clearSources">Clear uploaded</button>
+    </div>
+  </div>
+
+  <!-- STEP 3a: Movement (HumanTrak from PDF, Dynamo manual) -->
+  <details class="collapsible" id="sec_movement" open>
+    <summary>3a · Movement <span class="badge muted" id="badge_movement">awaiting input</span></summary>
+    <p class="app-subtitle" style="margin: 8px 0 4px;">Tests parsed from HumanTrak PDF appear here. Anything missing can be edited inline. Dynamo strength + ROM is filled manually (the Dynamo PDF is image-only).</p>
+    <div class="subhead" style="margin-top:14px">HumanTrak (parsed)</div>
+    <table class="parsed" id="vald_table">
+      <thead><tr><th>Test</th><th>Peak / L</th><th>Avg / R</th><th>Asymmetry %</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="subhead" style="margin-top:18px">Dynamo (manual)</div>
+    <table class="parsed" id="dynamo_table">
+      <thead><tr><th>Test</th><th>Left</th><th>Right</th><th>Unit</th><th>Asymmetry %</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="subhead" style="margin-top:18px">Composite questionnaire (12 items)</div>
+    <table class="parsed" id="qTable"></table>
+  </details>
+
+  <!-- STEP 3b: Nutrition (manual) -->
+  <details class="collapsible" id="sec_nutrition">
+    <summary>3b · Nutrition <span class="badge muted" id="badge_nutrition">manual</span></summary>
+    <div class="subhead" style="margin-top:14px">Body composition</div>
+    <div class="compact-grid">
+      <div><label>Weight (kg)</label><input id="bc_wt" type="number" step="0.1" /></div>
+      <div><label>BMI</label><input id="bc_bmi" type="number" step="0.1" /></div>
+      <div><label>Body Fat %</label><input id="bc_bf" type="number" step="0.1" /></div>
+      <div><label>Visceral Fat Score</label><input id="bc_vf" type="number" step="0.1" /></div>
+      <div><label>Muscle Mass (kg)</label><input id="bc_mm" type="number" step="0.1" /></div>
+      <div><label>HbA1c (%)</label><input id="bc_a1c" type="number" step="0.1" /></div>
+    </div>
+    <div class="subhead" style="margin-top:18px">Nutri Meter (10 items, 1=Never … 5=Always)</div>
+    <table class="parsed" id="nmTable"></table>
+    <p style="font-size:13px; margin-top: 8px;"><strong>Total:</strong> <span id="nmTotal">—</span> / 50</p>
+  </details>
+
+  <!-- STEP 3c: Mental wellbeing (manual) -->
+  <details class="collapsible" id="sec_mental">
+    <summary>3c · Mental wellbeing <span class="badge muted" id="badge_mental">manual</span></summary>
+    <p class="app-subtitle" style="margin: 8px 0;">Enter the pre-computed totals for the validated instruments.</p>
+    <div class="compact-grid" style="grid-template-columns: 1fr 1fr;">
+      <div><label>PSS-10 Total (0–40)</label><input id="pss" type="number" min="0" max="40" /></div>
+      <div><label>PSQI Total (0–21)</label><input id="psqi" type="number" min="0" max="21" /></div>
+    </div>
+  </details>
+
+  <!-- STEP 4: generate -->
+  <div class="panel">
+    <h2>4. Generate</h2>
+    <button class="btn" id="generate">Generate styled report</button>
+    <button class="btn ghost" id="printReport" style="margin-left:8px" disabled>Print / Save as PDF</button>
+  </div>
+
+  <div id="reportHost"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script type="module">
+  import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs";
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  window.pdfjsLib = pdfjs;
+  window.dispatchEvent(new Event('pdfjs-ready'));
+</script>
+<script src="./assets/scoring.js"></script>
+<script src="./assets/render.js"></script>
+<script src="./assets/parsers.js"></script>
+<script src="./assets/sample-data.js"></script>
+
+<script>
+// --- state -------------------------------------------------------------------
+const state = {
+  pkg: 'pkg2',           // pkg1 / pkg2 / pkg3
+  sources: [],           // {name, type, ok, data}
+  // Parsed payloads keyed by section
+  blood: { values: {}, meta: {}, patient: {} },
+  vald:  { tests: {}, patient: {}, meta: {} },
+  dynamo: {},            // { test_key: { left, right } }
+};
+
+const PKG_INCLUDES = {
+  pkg1: ['cover', 'background', 'movement', 'blood', 'integrated'],
+  pkg2: ['cover', 'background', 'summary', 'movement', 'blood', 'nutrition', 'integrated'],
+  pkg3: ['cover', 'background', 'summary', 'movement', 'blood', 'nutrition', 'wellbeing', 'integrated'],
+};
+
+// --- package selector --------------------------------------------------------
+document.getElementById('pkgs').addEventListener('click', e => {
+  const card = e.target.closest('.pkg-card');
+  if (!card) return;
+  document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  state.pkg = card.dataset.pkg;
+  updateSectionVisibility();
+});
+function updateSectionVisibility() {
+  const inc = PKG_INCLUDES[state.pkg] || [];
+  document.getElementById('sec_nutrition').style.display = inc.includes('nutrition') ? '' : 'none';
+  document.getElementById('sec_mental').style.display    = inc.includes('wellbeing') ? '' : 'none';
+}
+updateSectionVisibility();
+
+// --- build static tables -----------------------------------------------------
+function buildValdTable() {
+  const tbody = document.querySelector('#vald_table tbody');
+  tbody.innerHTML = '';
+  const tests = [
+    ['sit_to_stand', 'Sit-to-Stand × 5 (Duration)'],
+    ['trunk_flexion', 'Trunk Flexion'],
+    ['trunk_extension', 'Trunk Extension'],
+    ['trunk_lat_flex', 'Trunk Lateral Flexion'],
+    ['trunk_rotation', 'Trunk Rotation (Spinal)'],
+    ['neck_lat_flex', 'Neck Lateral Flexion'],
+    ['neck_rotation', 'Neck Rotation'],
+    ['squat', 'Overhead Squat'],
+    ['cmj', 'Countermovement Jump'],
+    ['balance', 'Single-Leg Balance'],
+  ];
+  for (const [k, label] of tests) {
+    const v = state.vald.tests[k] || {};
+    const a = v.peak ?? v.left ?? '';
+    const b = v.avg  ?? v.right ?? '';
+    const asym = v.asymmetry ?? '';
+    const tier = scoreValdTest(k, v);
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr data-key="${k}">
+        <td>${label}</td>
+        <td><input data-fld="a" value="${a}" style="width:70px"></td>
+        <td><input data-fld="b" value="${b}" style="width:70px"></td>
+        <td><input data-fld="asym" value="${asym}" style="width:60px"></td>
+        <td class="status-cell">${tier ? `<span class="status ${tier}">${tier.toUpperCase()}</span>` : '—'}</td>
+      </tr>`);
+  }
+  // wire input changes
+  tbody.addEventListener('input', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const k = tr.dataset.key;
+    const fld = e.target.dataset.fld;
+    const num = e.target.value === '' ? null : parseFloat(e.target.value);
+    state.vald.tests[k] = state.vald.tests[k] || {};
+    if (fld === 'a') {
+      // peak for single-value tests, left for bilateral
+      const bilat = ['trunk_lat_flex','trunk_rotation','neck_lat_flex','neck_rotation','balance'].includes(k);
+      state.vald.tests[k][bilat ? 'left' : 'peak'] = num;
+    } else if (fld === 'b') {
+      const bilat = ['trunk_lat_flex','trunk_rotation','neck_lat_flex','neck_rotation','balance'].includes(k);
+      state.vald.tests[k][bilat ? 'right' : 'avg'] = num;
+    } else if (fld === 'asym') state.vald.tests[k].asymmetry = num;
+    const tier = scoreValdTest(k, state.vald.tests[k]);
+    tr.querySelector('.status-cell').innerHTML = tier ? `<span class="status ${tier}">${tier.toUpperCase()}</span>` : '—';
+  });
+}
+function scoreValdTest(k, v) {
+  if (!v) return null;
+  const T = TML_SCORING.MOVEMENT_TESTS;
+  if (k === 'sit_to_stand' && v.peak != null) return T.sitToStand.score(v.peak);
+  if (k === 'trunk_flexion'   && v.peak != null) return T.trunkFlexion.score(v.peak);
+  if (k === 'trunk_extension' && v.peak != null) return T.trunkExtension.score(v.peak);
+  if (k === 'trunk_lat_flex')  return v.asymmetry != null ? T.asymmetryGeneric.score(v.asymmetry) : null;
+  if (k === 'trunk_rotation')  return v.asymmetry != null ? T.asymmetryGeneric.score(v.asymmetry) : null;
+  if (k === 'neck_lat_flex' && v.left != null && v.right != null) return T.neckLatFlex.score((v.left + v.right) / 2);
+  if (k === 'neck_rotation' && v.left != null && v.right != null) return T.neckRotation.score((v.left + v.right) / 2);
+  if (k === 'cmj' && v.peak != null) return T.countermovementJump.score(v.peak);
+  if (k === 'squat' && v.asymmetry != null) return T.squatAsymmetry.score(v.asymmetry);
+  if (k === 'balance' && v.asymmetry != null) return T.balanceAsymmetry.score(v.asymmetry);
+  return null;
+}
+
+function buildDynamoTable() {
+  const tbody = document.querySelector('#dynamo_table tbody');
+  tbody.innerHTML = '';
+  for (const [k, def] of Object.entries(TML_SCORING.DYNAMO_TESTS)) {
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr data-key="${k}">
+        <td>${def.label}</td>
+        <td><input data-fld="left" type="number" step="0.1" style="width:70px"></td>
+        <td><input data-fld="right" type="number" step="0.1" style="width:70px"></td>
+        <td>${def.unit}</td>
+        <td class="asym-cell">—</td>
+        <td class="status-cell">—</td>
+      </tr>`);
+  }
+  tbody.addEventListener('input', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const k = tr.dataset.key;
+    const left  = parseFloat(tr.querySelector('input[data-fld="left"]').value);
+    const right = parseFloat(tr.querySelector('input[data-fld="right"]').value);
+    state.dynamo[k] = { left: isNaN(left) ? null : left, right: isNaN(right) ? null : right };
+    if (!isNaN(left) && !isNaN(right) && Math.max(left, right) > 0) {
+      const asym = Math.round(Math.abs(left - right) / Math.max(left, right) * 1000) / 10;
+      const tier = TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(asym);
+      tr.querySelector('.asym-cell').textContent = asym + '%';
+      tr.querySelector('.status-cell').innerHTML = `<span class="status ${tier}">${tier.toUpperCase()}</span>`;
+      state.dynamo[k].asymmetry = asym;
+      state.dynamo[k].tier = tier;
+    } else {
+      tr.querySelector('.asym-cell').textContent = '—';
+      tr.querySelector('.status-cell').innerHTML = '—';
+    }
+  });
+}
+
+function buildMovementQuestionnaire() {
+  const t = document.getElementById('qTable');
+  t.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>Always</th><th>More freq.</th><th>Rarely</th><th>Never</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  TML_SCORING.MOVEMENT_QUESTIONNAIRE.forEach((q, i) => {
+    const tr = document.createElement('tr');
+    const r = (k) => `<td style="text-align:center"><input type="radio" name="q${i}" value="${k}"></td>`;
+    tr.innerHTML = `<td>${q.id}</td><td>${q.q}</td>${r('always')}${r('more_freq')}${r('rarely')}${r('never')}`;
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+}
+
+function buildNutriMeter() {
+  const t = document.getElementById('nmTable');
+  t.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  TML_SCORING.NUTRI_METER_QUESTIONS.forEach((q, i) => {
+    const tr = document.createElement('tr');
+    let cells = '';
+    for (let n = 1; n <= 5; n++) cells += `<td style="text-align:center"><input type="radio" name="nm${i}" value="${n}"></td>`;
+    tr.innerHTML = `<td>${i+1}</td><td>${q}</td>${cells}`;
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  t.addEventListener('change', () => {
+    let s = 0, miss = 0;
+    for (let i = 0; i < 10; i++) {
+      const sel = document.querySelector(`input[name="nm${i}"]:checked`);
+      if (sel) s += +sel.value; else miss++;
+    }
+    document.getElementById('nmTotal').textContent = miss ? `${s} (${miss} unanswered)` : s;
+  });
+}
+
+buildValdTable();
+buildDynamoTable();
+buildMovementQuestionnaire();
+buildNutriMeter();
+
+// --- file drop ---------------------------------------------------------------
+const drop = document.getElementById('drop'), fileInput = document.getElementById('file');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => [...e.dataTransfer.files].forEach(handleFile));
+fileInput.addEventListener('change', e => [...e.target.files].forEach(handleFile));
+
+async function handleFile(file) {
+  const row = { name: file.name, type: 'detecting…', ok: false };
+  state.sources.push(row);
+  renderSources();
+  try {
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      await new Promise(r => window.pdfjsLib ? r() : window.addEventListener('pdfjs-ready', r, { once: true }));
+    }
+    const result = await TML_PARSERS.parseFile(file);
+    if (result.source === 'image-only') {
+      row.type = 'Image-only PDF'; row.ok = false; row.err = 'No text — enter manually';
+    } else if (result.source === 'vald-humantrak') {
+      row.type = 'HumanTrak (VALD)'; row.ok = true;
+      mergeVALD(result);
+      document.getElementById('badge_movement').className = 'badge green';
+      document.getElementById('badge_movement').textContent = `${Object.keys(result.tests).length} tests parsed`;
+    } else if (result.source === 'hitech-blood' || result.source === 'generic-blood') {
+      row.type = `Blood (${result.source === 'hitech-blood' ? 'Hitech' : 'generic'})`; row.ok = true;
+      mergeBlood(result);
+    } else if (result.sheets) {
+      row.type = 'Excel/CSV'; row.ok = true;
+      mergeBlood(result);
+    } else {
+      row.type = 'Unknown'; row.ok = false; row.err = 'Could not identify file format';
+    }
+  } catch (e) {
+    row.type = 'Error'; row.ok = false; row.err = e.message;
+    console.error(e);
+  }
+  renderSources();
+}
+
+function renderSources() {
+  const list = document.getElementById('sourceList');
+  list.innerHTML = '';
+  if (!state.sources.length) return;
+  state.sources.forEach((s, idx) => {
+    const ico = s.ok ? '✓' : (s.err ? '✗' : '⋯');
+    const cls = s.ok ? 'ok' : (s.err ? 'err' : 'warn');
+    list.insertAdjacentHTML('beforeend',
+      `<div class="source-row">
+        <div class="ico" style="color: var(--st-${s.ok ? 'green' : (s.err ? 'red' : 'orange')})">${ico}</div>
+        <div class="fname">${s.name}</div>
+        <div class="src-type">${s.type}</div>
+        <div class="src-status ${cls}">${s.ok ? 'parsed' : (s.err || 'pending')}</div>
+      </div>`);
+  });
+}
+
+function mergeVALD(r) {
+  state.vald = { ...state.vald, tests: { ...state.vald.tests, ...r.tests }, patient: { ...state.vald.patient, ...r.patient }, meta: { ...state.vald.meta, ...r.meta } };
+  if (r.patient.name && !document.getElementById('p_name').value) document.getElementById('p_name').value = r.patient.name;
+  if (r.patient.dob && !document.getElementById('p_age').value) {
+    const m = String(r.patient.dob).match(/\((\d+)\s*years?\)/);
+    if (m) document.getElementById('p_age').value = m[1];
+  }
+  // re-render VALD table to reflect parsed values
+  buildValdTable();
+}
+function mergeBlood(r) {
+  state.blood.values = { ...state.blood.values, ...r.values };
+  state.blood.meta   = { ...state.blood.meta,   ...r.meta };
+  state.blood.patient= { ...state.blood.patient, ...r.patient };
+  if (r.patient && r.patient.name && !document.getElementById('p_name').value) {
+    document.getElementById('p_name').value = r.patient.name;
+  }
+  if (r.patient && r.patient.age_sex && !document.getElementById('p_age').value) {
+    const m = String(r.patient.age_sex).match(/(\d+)/);
+    if (m) document.getElementById('p_age').value = m[1];
+  }
+}
+
+document.getElementById('clearSources').addEventListener('click', () => {
+  state.sources = []; state.blood = { values: {}, meta: {}, patient: {} }; state.vald = { tests: {}, patient: {}, meta: {} };
+  renderSources(); buildValdTable();
+});
+
+document.getElementById('loadSamples').addEventListener('click', async () => {
+  // try fetching sample-blood.pdf and sample-humantrak.pdf from the site root (gitignored, only local)
+  for (const name of ['sample-humantrak.pdf', 'sample-blood.pdf']) {
+    try {
+      const r = await fetch('/' + name);
+      if (!r.ok) continue;
+      const blob = await r.blob();
+      await handleFile(new File([blob], name, { type: 'application/pdf' }));
+    } catch (e) { /* skip */ }
+  }
+  // also load Anandan T. mock for nutrition + wellbeing
+  document.getElementById('bc_wt').value = 85.8;
+  document.getElementById('bc_bmi').value = 29.0;
+  document.getElementById('bc_bf').value = 28.4;
+  document.getElementById('bc_vf').value = 12;
+  document.getElementById('bc_mm').value = 53.2;
+  document.getElementById('bc_a1c').value = 6.0;
+  document.getElementById('pss').value = 26;
+  document.getElementById('psqi').value = 13;
+  [4,4,5,4,5,3,4,3,4,2].forEach((v, i) => {
+    const r = document.querySelector(`input[name="nm${i}"][value="${v}"]`);
+    if (r) r.checked = true;
+  });
+  document.getElementById('nmTable').dispatchEvent(new Event('change'));
+});
+
+// --- generate ---------------------------------------------------------------
+document.getElementById('generate').addEventListener('click', () => {
+  const num = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
+  const sex = document.getElementById('p_sex').value;
+  const tierFor = (key, v) => v == null ? null : (TML_SCORING.BODY_COMP[key] ? TML_SCORING.BODY_COMP[key](v) : null);
+
+  // Build movement baseline from VALD + Dynamo + questionnaire
+  const v = state.vald.tests;
+  const baseline = {};
+  if (v.balance) baseline.balance = { right_mm2: v.balance.right, left_mm2: v.balance.left, asym_pct: v.balance.asymmetry };
+  if (v.posture) baseline.posture = { shoulder_drop_cm: v.posture.peak };
+  if (v.neck_lat_flex || v.neck_rotation) {
+    baseline.neck = {
+      lat_flex_right: v.neck_lat_flex?.right, lat_flex_left: v.neck_lat_flex?.left, lat_flex_ref: '56–65',
+      lat_flex_asym: v.neck_lat_flex?.asymmetry,
+      rotation_right: v.neck_rotation?.right, rotation_left: v.neck_rotation?.left, rotation_ref: '66–75',
+      rotation_asym: v.neck_rotation?.asymmetry,
+    };
+  }
+  if (v.trunk_flexion || v.trunk_extension || v.trunk_lat_flex || v.trunk_rotation) {
+    baseline.trunk = {
+      flexion: v.trunk_flexion?.peak, flexion_avg: v.trunk_flexion?.avg, flexion_ref: '100–130',
+      extension: v.trunk_extension?.peak, extension_avg: v.trunk_extension?.avg, extension_ref: '26–45',
+      lat_flex_right: v.trunk_lat_flex?.right, lat_flex_left: v.trunk_lat_flex?.left, lat_flex_ref: '26–45',
+      lat_flex_asym: v.trunk_lat_flex?.asymmetry,
+      rotation_right: v.trunk_rotation?.right, rotation_left: v.trunk_rotation?.left, rotation_ref: '31–45',
+      rotation_asym: v.trunk_rotation?.asymmetry,
+    };
+  }
+  if (v.sit_to_stand || v.squat || v.cmj) {
+    baseline.dynamic = {
+      squat_right_deg: v.squat?.peak, squat_left_deg: v.squat?.avg, squat_asym: v.squat?.asymmetry,
+      sit_to_stand_s: v.sit_to_stand?.peak,
+      cmj_cm: v.cmj?.peak,
+    };
+  }
+  // Dynamo as a flat strength block
+  const dynamoRows = Object.entries(state.dynamo)
+    .filter(([, d]) => d.left != null || d.right != null)
+    .map(([k, d]) => ({
+      label: TML_SCORING.DYNAMO_TESTS[k].label,
+      left: d.left, right: d.right, unit: TML_SCORING.DYNAMO_TESTS[k].unit,
+      asymmetry: d.asymmetry, tier: d.tier,
+    }));
+  baseline.dynamo = dynamoRows;
+
+  // Questionnaire
+  baseline.questionnaire = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
+    const sel = document.querySelector(`input[name="q${i}"]:checked`);
+    return { id: q.id, answer: sel ? sel.value : null,
+      score: sel ? TML_SCORING.scoreMovementQuestion(sel.value, q.reverse) : null };
+  });
+
+  // Composite from all available test tiers + question scores
+  const testTiers = [
+    v.balance && TML_SCORING.MOVEMENT_TESTS.balanceAsymmetry.score(v.balance.asymmetry),
+    v.posture && TML_SCORING.MOVEMENT_TESTS.shoulderDrop.score(v.posture.peak),
+    v.neck_lat_flex && v.neck_lat_flex.left && v.neck_lat_flex.right && TML_SCORING.MOVEMENT_TESTS.neckLatFlex.score((v.neck_lat_flex.left + v.neck_lat_flex.right) / 2),
+    v.neck_rotation && v.neck_rotation.left && v.neck_rotation.right && TML_SCORING.MOVEMENT_TESTS.neckRotation.score((v.neck_rotation.left + v.neck_rotation.right) / 2),
+    v.trunk_flexion && TML_SCORING.MOVEMENT_TESTS.trunkFlexion.score(v.trunk_flexion.peak),
+    v.trunk_extension && TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(v.trunk_extension.peak),
+    v.trunk_lat_flex && TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(v.trunk_lat_flex.asymmetry),
+    v.trunk_rotation && TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(v.trunk_rotation.asymmetry),
+    v.sit_to_stand && TML_SCORING.MOVEMENT_TESTS.sitToStand.score(v.sit_to_stand.peak),
+    v.cmj && TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(v.cmj.peak),
+    v.squat && TML_SCORING.MOVEMENT_TESTS.squatAsymmetry.score(v.squat.asymmetry),
+    ...dynamoRows.map(r => r.tier),
+  ].filter(Boolean).map(t => TML_SCORING.TIER[t]).filter(x => x != null);
+  const qScores = baseline.questionnaire.map(q => q.score).filter(x => x != null);
+  const compRaw = TML_SCORING.movementComposite(testTiers, qScores);
+  const band = compRaw ? TML_SCORING.movementBand(compRaw.scaled) : null;
+  if (compRaw && band) {
+    baseline.composite = { sum: compRaw.sum, max: compRaw.max, scaled: compRaw.scaled, tier: band.tier, label: band.label };
+  }
+
+  // Nutrition body comp
+  const bodyFatKey = sex.toLowerCase() === 'female' ? 'bodyFatPctFemale' : 'bodyFatPctMale';
+  const body_comp = [
+    num('bc_wt')  != null && { param: 'Weight',                   baseline: `${num('bc_wt')} kg`,    endpoint: '—', delta: '—', tier: 'green' },
+    num('bc_bmi') != null && { param: 'BMI',                      baseline: `${num('bc_bmi')} kg/m²`, endpoint: '—', delta: '—', tier: tierFor('bmi', num('bc_bmi')) },
+    num('bc_bf')  != null && { param: 'Body Fat Percentage',      baseline: `${num('bc_bf')}%`,       endpoint: '—', delta: '—', tier: tierFor(bodyFatKey, num('bc_bf')) },
+    num('bc_vf')  != null && { param: 'Visceral Fat Score',       baseline: `${num('bc_vf')}`,         endpoint: '—', delta: '—', tier: tierFor('visceralFat', num('bc_vf')) },
+    num('bc_mm')  != null && { param: 'Muscle Mass',              baseline: `${num('bc_mm')} kg`,     endpoint: '—', delta: '—', tier: 'green' },
+    num('bc_a1c') != null && { param: 'HbA1c',                    baseline: `${num('bc_a1c')}%`,      endpoint: '—', delta: '—', tier: tierFor('hba1c', num('bc_a1c')) },
+  ].filter(Boolean);
+  const nm = [];
+  for (let i = 0; i < 10; i++) {
+    const sel = document.querySelector(`input[name="nm${i}"]:checked`);
+    nm.push(sel ? parseInt(sel.value) : null);
+  }
+  const nmTotal = nm.reduce((a, b) => a + (b || 0), 0);
+  const nmBand = TML_SCORING.nutriMeterBand(nmTotal);
+
+  const pss = num('pss'); const psqi = num('psqi');
+  const pssBand = pss != null ? TML_SCORING.pss10Band(pss) : null;
+  const psqiBand_ = psqi != null ? TML_SCORING.psqiBand(psqi) : null;
+  const wbRows = [];
+  if (pss != null)  wbRows.push({ param: 'Perceived Stress Scale (PSS-10)', baseline: `${pss}/40`, endpoint: '—', delta: '—', tier: pssBand.tier });
+  if (psqi != null) wbRows.push({ param: 'Pittsburgh Sleep Quality Index (PSQI)', baseline: `${psqi}/21`, endpoint: '—', delta: '—', tier: psqiBand_.tier });
+
+  // Build the case object
+  const caseData = {
+    patient: {
+      name: document.getElementById('p_name').value,
+      age: document.getElementById('p_age').value,
+      sex: document.getElementById('p_sex').value,
+      endpoint_date: document.getElementById('p_date').value,
+      programme: { pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness' }[state.pkg],
+    },
+    movement: { baseline },
+    blood: { section_num: '02', meta: state.blood.meta, values: state.blood.values, pending: [] },
+    nutrition: { body_comp,
+      nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 50, tier: nmBand.tier, label: nmBand.label } : null,
+      nutrimeter_responses: nm,
+    },
+    wellbeing: { rows: wbRows,
+      pss_note: pssBand ? `Band: ${pssBand.label}` : null,
+      psqi_note: psqiBand_ ? `Band: ${psqiBand_.label}` : null,
+    },
+    integrated: { observations: [], continue: [], attention: [],
+      next_step: `Recommended next step depends on findings above. Programme enrolled: ${{ pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness Package' }[state.pkg]}.` },
+  };
+
+  const host = document.getElementById('reportHost');
+  host.innerHTML = '';
+  TML_RENDER.render(caseData, host, { include: PKG_INCLUDES[state.pkg] });
+  document.getElementById('printReport').disabled = false;
+  host.scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('printReport').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>
