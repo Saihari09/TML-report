@@ -13,7 +13,10 @@
   <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
   <nav>
     <a href="./index.html" class="active">Home</a>
+    <a href="./generator.html">Generator</a>
     <a href="./template.html">Template</a>
+    <span style="opacity:.7; font-size: 12px; margin-left: 8px;"><span data-tml-username></span></span>
+    <a href="#" data-tml-logout>Logout</a>
   </nav>
 </header>
 
@@ -22,6 +25,13 @@
   <p class="app-subtitle">Generate styled TML wellness reports from blood, HumanTrak, and Nutrition/Mental Wellbeing data. All parsing and rendering happens in your browser — no patient data is uploaded.</p>
 
   <div class="banner-phi">Client-side only. Patient data never leaves this device.</div>
+
+  <script src="./assets/auth.js"></script>
+  <script>
+    if (!TML_AUTH.requireAuth()) { /* redirect */ }
+    TML_AUTH.bindLogoutControls();
+    TML_AUTH.showUsername(TML_AUTH.getSession());
+  </script>
 
   <a class="card" href="./generator.html" style="display:block; border-top-width: 6px; padding: 28px; margin-bottom: 24px;">
     <div class="num">★ MAIN</div>

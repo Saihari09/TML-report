@@ -282,4 +282,19 @@ table.r td.center, table.r th.center { text-align: center; }
   .page { margin: 0; box-shadow: none; width: 100%; min-height: auto; padding: 0.6in 0.65in; }
   .no-print { display: none !important; }
   .foot { position: fixed; bottom: 0.3in; }
+
+  /* On the generator page (body.app), hide the app chrome and print only the report */
+  body.app .app-header,
+  body.app .app-title,
+  body.app .app-subtitle,
+  body.app .banner-phi,
+  body.app .panel,
+  body.app .pkgs,
+  body.app details.collapsible,
+  body.app .source-list,
+  body.app .drop,
+  body.app .tml-overlay { display: none !important; }
+  body.app { background: #fff; }
+  body.app .app-container { max-width: none; padding: 0; }
+  body.app #reportHost { display: block; }
 }

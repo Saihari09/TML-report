@@ -71,6 +71,8 @@
 </div>
 
 <!-- libs (CDN; load only on pages that need them) -->
+<script src="./assets/auth.js"></script>
+<script>if (!TML_AUTH.requireAuth()) { /* redirect */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs" type="module"></script>
 <script type="module">

@@ -43,12 +43,22 @@
 </head>
 <body class="app">
 
+<div class="tml-overlay" id="overlay">
+  <div class="box">
+    <div class="spinner"></div>
+    <div class="label" id="overlayLabel">Working…</div>
+    <div class="detail" id="overlayDetail"></div>
+  </div>
+</div>
+
 <header class="app-header">
   <div class="brand">THE MOVEMENT LAB<small>Lifestyle, Realigned.</small></div>
   <nav>
     <a href="./index.html">Home</a>
     <a href="./generator.html" class="active">Generator</a>
     <a href="./template.html">Template</a>
+    <span style="opacity:.7; font-size: 12px; margin-left: 8px;"><span data-tml-username></span></span>
+    <a href="#" data-tml-logout>Logout</a>
   </nav>
 </header>
 
@@ -163,6 +173,30 @@
     </div>
   </details>
 
+  <!-- STEP 3d: Recommendations (optional) -->
+  <details class="collapsible" id="sec_recs">
+    <summary>3d · Recommendations <span class="badge muted">optional</span></summary>
+    <p class="app-subtitle" style="margin: 8px 0 12px;">One bullet per line. Each domain renders as a numbered list under "Recommendations" in the corresponding report section.</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+      <div>
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--tml-muted);">Movement</label>
+        <textarea id="recs_movement" rows="5" style="width:100%; padding:8px 10px; border:1px solid var(--tml-line); border-radius:3px; font-family:inherit; font-size:13px;" placeholder="Continue twice-weekly physiotherapy..."></textarea>
+      </div>
+      <div>
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--tml-muted);">Blood / Biomarkers</label>
+        <textarea id="recs_blood" rows="5" style="width:100%; padding:8px 10px; border:1px solid var(--tml-line); border-radius:3px; font-family:inherit; font-size:13px;" placeholder="Vitamin D3 supplementation 60,000 IU weekly..."></textarea>
+      </div>
+      <div>
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--tml-muted);">Nutrition</label>
+        <textarea id="recs_nutrition" rows="5" style="width:100%; padding:8px 10px; border:1px solid var(--tml-line); border-radius:3px; font-family:inherit; font-size:13px;" placeholder="Protein-anchored breakfast (≥25 g)..."></textarea>
+      </div>
+      <div>
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--tml-muted);">Mental Wellbeing</label>
+        <textarea id="recs_mental" rows="5" style="width:100%; padding:8px 10px; border:1px solid var(--tml-line); border-radius:3px; font-family:inherit; font-size:13px;" placeholder="60-minute wind-down protocol..."></textarea>
+      </div>
+    </div>
+  </details>
+
   <!-- STEP 4: generate -->
   <div class="panel">
     <h2>4. Generate</h2>
@@ -173,6 +207,8 @@
   <div id="reportHost"></div>
 </div>
 
+<script src="./assets/auth.js"></script>
+<script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
   import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs";
@@ -359,6 +395,10 @@ buildDynamoTable();
 buildMovementQuestionnaire();
 buildNutriMeter();
 
+// Show username, wire logout
+TML_AUTH.bindLogoutControls();
+TML_AUTH.showUsername(TML_AUTH.getSession());
+
 // --- file drop ---------------------------------------------------------------
 const drop = document.getElementById('drop'), fileInput = document.getElementById('file');
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
@@ -366,10 +406,18 @@ const drop = document.getElementById('drop'), fileInput = document.getElementByI
 drop.addEventListener('drop', e => [...e.dataTransfer.files].forEach(handleFile));
 fileInput.addEventListener('change', e => [...e.target.files].forEach(handleFile));
 
+function setOverlay(on, label, detail) {
+  const o = document.getElementById('overlay');
+  if (label)  document.getElementById('overlayLabel').textContent = label;
+  if (detail !== undefined) document.getElementById('overlayDetail').textContent = detail || '';
+  o.classList.toggle('on', !!on);
+}
+
 async function handleFile(file) {
   const row = { name: file.name, type: 'detecting…', ok: false };
   state.sources.push(row);
   renderSources();
+  setOverlay(true, 'Parsing PDF…', file.name);
   try {
     if (file.name.toLowerCase().endsWith('.pdf')) {
       await new Promise(r => window.pdfjsLib ? r() : window.addEventListener('pdfjs-ready', r, { once: true }));
@@ -397,6 +445,8 @@ async function handleFile(file) {
   } catch (e) {
     row.type = 'Error'; row.ok = false; row.err = e.message;
     console.error(e);
+  } finally {
+    setOverlay(false);
   }
   renderSources();
 }
@@ -476,6 +526,7 @@ document.getElementById('clearSources').addEventListener('click', () => {
 });
 
 document.getElementById('loadSamples').addEventListener('click', async () => {
+  setOverlay(true, 'Loading samples…', '3 PDFs');
   // try fetching sample-blood.pdf and sample-humantrak.pdf from the site root (gitignored, only local)
   for (const name of ['sample-humantrak.pdf', 'sample-blood.pdf', 'sample-bca.pdf']) {
     try {
@@ -496,6 +547,7 @@ document.getElementById('loadSamples').addEventListener('click', async () => {
     if (r) r.checked = true;
   });
   document.getElementById('nmTable').dispatchEvent(new Event('change'));
+  setOverlay(false);
 });
 
 // --- generate ---------------------------------------------------------------
@@ -601,6 +653,13 @@ document.getElementById('generate').addEventListener('click', () => {
   if (pss != null)  wbRows.push({ param: 'Perceived Stress Scale (PSS-10)', baseline: `${pss}/40`, endpoint: '—', delta: '—', tier: pssBand.tier });
   if (psqi != null) wbRows.push({ param: 'Pittsburgh Sleep Quality Index (PSQI)', baseline: `${psqi}/21`, endpoint: '—', delta: '—', tier: psqiBand_.tier });
 
+  // Recommendations — one bullet per line
+  const recLines = id => (document.getElementById(id).value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const recs_movement  = recLines('recs_movement');
+  const recs_blood     = recLines('recs_blood');
+  const recs_nutrition = recLines('recs_nutrition');
+  const recs_mental    = recLines('recs_mental');
+
   // Build the case object
   const caseData = {
     patient: {
@@ -609,17 +668,20 @@ document.getElementById('generate').addEventListener('click', () => {
       sex: document.getElementById('p_sex').value,
       endpoint_date: document.getElementById('p_date').value,
       programme: { pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness' }[state.pkg],
+      authored_by: TML_AUTH.getSession()?.user || '',
     },
-    movement: { baseline },
+    movement: { baseline, recs: recs_movement },
     bca: state.bca ? { section_num: '02', ...state.bca } : null,
-    blood: { section_num: state.bca ? '03' : '02', meta: state.blood.meta, values: state.blood.values, pending: [] },
+    blood: { section_num: state.bca ? '03' : '02', meta: state.blood.meta, values: state.blood.values, pending: [], recs: recs_blood },
     nutrition: { body_comp,
       nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 50, tier: nmBand.tier, label: nmBand.label } : null,
       nutrimeter_responses: nm,
+      recs: recs_nutrition,
     },
     wellbeing: { rows: wbRows,
       pss_note: pssBand ? `Band: ${pssBand.label}` : null,
       psqi_note: psqiBand_ ? `Band: ${psqiBand_.label}` : null,
+      recs: recs_mental,
     },
     integrated: { observations: [], continue: [], attention: [],
       next_step: `Recommended next step depends on findings above. Programme enrolled: ${{ pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness Package' }[state.pkg]}.` },
