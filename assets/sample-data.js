@@ -49,7 +49,7 @@ window.TML_DEMO = {
     ],
   },
   body_comp: { weight: 72.4, bmi: 24.1, bf: 28.4, vf: 9, mm: 28.9, a1c: 5.6 },
-  nutrimeter: [3, 3, 3, 2, 2, 2, 3, 2, 3, 2],   // total 25 → Compromised
+  nutrimeter: [3, 3, 3, 2, 2, 2, 3, 2],         // total 20 → Compromised (range 8–40)
   pss: 18, psqi: 7,
   recs: {
     movement: [
@@ -84,7 +84,7 @@ window.TML_SAMPLE = {
     endpoint_date: "15 April 2026",
     programme: "TML Thrive",
     client: "Reliance Industries Limited",
-    clinical_team: "TML Clinical Team — Dr. Rakshith R. (Lead), Ms. Dakshina Chitra (Physiotherapy), Ms. Kavya Sridher (Nutrition), Ms. Srinithi Natarajan (Psychology), Dr. Ramya Rajaram (Movement Therapy)",
+    clinical_team: "TML Clinical Team — Dr. Rakshith R. (Lead), Ms. Dhakshana Chithra (Physiotherapy), Ms. Archana Suresh (Nutrition), Ms. Srinithi Natarajan (Psychology), Dr. Ramya Rajaram (Movement Therapy)",
   },
   clinical_background: {
     complaints: "Persistent stiffness of the neck and lower back, more pronounced after prolonged sitting and at the end of the working day.",

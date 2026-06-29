@@ -374,17 +374,38 @@
 
   function testKey(title) {
     const t = title.toLowerCase().trim();
-    if (/sit to stand/.test(t)) return 'sit_to_stand';
+    // Trunk
     if (/trunk flexion/.test(t)) return 'trunk_flexion';
     if (/trunk extension/.test(t)) return 'trunk_extension';
     if (/trunk lateral flexion|trunk lat/.test(t)) return 'trunk_lat_flex';
     if (/trunk rotation|spinal rotation/.test(t)) return 'trunk_rotation';
+    // Neck
     if (/neck lateral flexion/.test(t)) return 'neck_lat_flex';
     if (/neck rotation/.test(t)) return 'neck_rotation';
-    if (/overhead squat|squat/.test(t)) return 'squat';
+    // Shoulder
+    if (/shoulder abduction/.test(t)) return 'shoulder_abd';
+    if (/shoulder external rotation/.test(t)) return 'shoulder_er';
+    if (/shoulder internal rotation/.test(t)) return 'shoulder_ir';
+    if (/shoulder extension/.test(t)) return 'shoulder_ext';
+    if (/shoulder flexion/.test(t)) return 'shoulder_flex';
+    if (/shoulder drop/.test(t)) return 'posture';
+    // Elbow
+    if (/elbow flexion/.test(t)) return 'elbow_flex';
+    if (/elbow extension/.test(t)) return 'elbow_ext';
+    // Hip
+    if (/seated hip internal rotation/.test(t)) return 'hip_ir_seated';
+    if (/hip internal rotation/.test(t)) return 'hip_ir';
+    if (/hip external rotation/.test(t)) return 'hip_er';
+    if (/hip flexion/.test(t)) return 'hip_flexion';
+    // Ankle
+    if (/weight bearing dorsiflexion|dorsiflexion/.test(t)) return 'wb_dorsiflexion';
+    // Dynamic
+    if (/sit to stand/.test(t)) return 'sit_to_stand';
+    if (/overhead squat|^squat/.test(t)) return 'squat';
     if (/countermovement|cmj/.test(t)) return 'cmj';
-    if (/single.?leg balance|balance/.test(t)) return 'balance';
-    if (/shoulder drop|posture/.test(t)) return 'posture';
+    if (/single.?leg balance|^balance/.test(t)) return 'balance';
+    // Posture
+    if (/standing posture|posture/.test(t)) return 'posture';
     return null;
   }
 

@@ -103,9 +103,13 @@ body.report {
   font-size: 11pt;
   font-weight: 600;
   color: var(--tml-burgundy);
-  margin: 18px 0 6px 0;
+  margin: 14px 0 4px 0;
   letter-spacing: 0.04em;
 }
+/* Section bar directly above a subhead or table should not double-margin */
+.section-bar + .subhead,
+.section-bar + table.r,
+.subhead + table.r { margin-top: 4px; }
 .muted { color: var(--tml-muted); }
 .intro { font-size: 10pt; color: var(--tml-ink); margin-bottom: 12px; }
 
@@ -134,23 +138,27 @@ table.r thead th {
 table.r td.num, table.r th.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.r td.center, table.r th.center { text-align: center; }
 
-/* Status pill / cell */
+/* Status pill / cell — uniform width + colour name inside */
 .status {
   display: inline-block;
   font-size: 8pt;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 3px 8px;
+  padding: 4px 0;
   border-radius: 3px;
   border: 1px solid currentColor;
-  min-width: 64px;
+  width: 88px;
   text-align: center;
+  vertical-align: middle;
+  box-sizing: border-box;
+  line-height: 1.1;
 }
 .status.green  { color: var(--st-green);  background: var(--st-green-bg); }
 .status.yellow { color: var(--st-yellow); background: var(--st-yellow-bg); }
 .status.orange { color: var(--st-orange); background: var(--st-orange-bg); }
 .status.red    { color: var(--st-red);    background: var(--st-red-bg); }
+.status.none   { color: var(--tml-muted); background: #fff; border-color: var(--tml-line); }
 
 .swatch {
   display: inline-block;

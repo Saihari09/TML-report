@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report Generator</title>
-<link rel="stylesheet" href="./assets/report.css" />
-<link rel="stylesheet" href="./assets/app.css" />
+<link rel="stylesheet" href="./assets/report.css?v=20260617" />
+<link rel="stylesheet" href="./assets/app.css?v=20260617" />
 <style>
   .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
   .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
@@ -164,7 +164,7 @@
     </div>
     <div class="subhead" style="margin-top:18px">Nutri Meter (10 items, 1=Never … 5=Always)</div>
     <table class="parsed" id="nmTable"></table>
-    <p style="font-size:13px; margin-top: 8px;"><strong>Total:</strong> <span id="nmTotal">—</span> / 50</p>
+    <p style="font-size:13px; margin-top: 8px;"><strong>Total:</strong> <span id="nmTotal">—</span> / 40</p>
   </details>
 
   <!-- STEP 3c: Mental wellbeing (manual) -->
@@ -211,7 +211,7 @@
   <div id="reportHost"></div>
 </div>
 
-<script src="./assets/auth.js"></script>
+<script src="./assets/auth.js?v=20260617"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
@@ -220,10 +220,10 @@
   window.pdfjsLib = pdfjs;
   window.dispatchEvent(new Event('pdfjs-ready'));
 </script>
-<script src="./assets/scoring.js"></script>
-<script src="./assets/render.js"></script>
-<script src="./assets/parsers.js"></script>
-<script src="./assets/sample-data.js"></script>
+<script src="./assets/scoring.js?v=20260617"></script>
+<script src="./assets/render.js?v=20260617"></script>
+<script src="./assets/parsers.js?v=20260617"></script>
+<script src="./assets/sample-data.js?v=20260617"></script>
 
 <script>
 // --- state -------------------------------------------------------------------
@@ -640,6 +640,24 @@ document.getElementById('generate').addEventListener('click', () => {
   // Carry VALD test objects (including page thumbnails) for the gallery page
   baseline.vald_tests = state.vald.tests;
 
+  // Tests that don't fit the hardcoded sections (shoulder, elbow, hip IR, dorsiflexion, etc.)
+  // get surfaced as a generic "Additional Tests" table.
+  const HANDLED = new Set(['balance','posture','neck_lat_flex','neck_rotation',
+    'trunk_flexion','trunk_extension','trunk_lat_flex','trunk_rotation',
+    'sit_to_stand','squat','cmj']);
+  const additional = [];
+  for (const [k, t] of Object.entries(state.vald.tests)) {
+    if (HANDLED.has(k)) continue;
+    additional.push({
+      key: k,
+      title: t.title || k,
+      peak: t.peak, avg: t.avg,
+      left: t.left, right: t.right,
+      asymmetry: t.asymmetry ?? (t.left != null && t.right != null ? window.TML_SCORING.asymmetryFromLR(t.left, t.right) : null),
+    });
+  }
+  baseline.additional_tests = additional;
+
   // Questionnaire
   baseline.questionnaire = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
     const sel = document.querySelector(`input[name="q${i}"]:checked`);
@@ -717,7 +735,7 @@ document.getElementById('generate').addEventListener('click', () => {
     bca: state.bca ? { section_num: '02', ...state.bca } : null,
     blood: { section_num: state.bca ? '03' : '02', meta: state.blood.meta, values: state.blood.values, pending: [], recs: recs_blood },
     nutrition: { body_comp,
-      nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 50, tier: nmBand.tier, label: nmBand.label } : null,
+      nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 40, tier: nmBand.tier, label: nmBand.label } : null,
       nutrimeter_responses: nm,
       recs: recs_nutrition,
     },

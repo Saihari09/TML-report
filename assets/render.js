@@ -19,8 +19,8 @@
     return n;
   };
   const statusPill = (tier, label) => {
-    if (!tier) return el('span', { class: 'muted' }, '—');
-    const txt = label || ({ green: 'Normal', yellow: 'Mild', orange: 'Significant', red: 'Urgent' })[tier];
+    if (!tier) return el('span', { class: 'status none' }, '—');
+    const txt = label || (window.TML_SCORING && window.TML_SCORING.TIER_LABEL ? window.TML_SCORING.TIER_LABEL[tier] : tier.toUpperCase());
     return el('span', { class: `status ${tier}` }, txt);
   };
 
@@ -173,7 +173,7 @@
 
     // 1. Balance
     if (b.balance) {
-      node.appendChild(el('div', { class: 'subhead' }, '1 · Balance Assessment'));
+      node.appendChild(el('div', { class: 'subhead' }, 'Balance Assessment'));
       node.appendChild(tableRows(
         ['Test', 'Right (mm²)', 'Left (mm²)', 'Asymmetry', 'Status'],
         [['Single-Leg Balance (Eyes Closed) — COM 95% Ellipse Area',
@@ -184,7 +184,7 @@
 
     // 2. Posture
     if (b.posture) {
-      node.appendChild(el('div', { class: 'subhead' }, '2 · Posture Assessment'));
+      node.appendChild(el('div', { class: 'subhead' }, 'Posture Assessment'));
       node.appendChild(tableRows(
         ['Test', 'Shoulder Drop (cm)', 'Status'],
         [['Static Posture Analysis (Frontal Plane)', b.posture.shoulder_drop_cm,
@@ -192,25 +192,30 @@
       ));
     }
 
-    // 3. Neck ROM
+    // 3. Neck ROM — status is colour-coded on the L/R asymmetry %.
     if (b.neck) {
-      node.appendChild(el('div', { class: 'subhead' }, '3 · Neck Range of Motion'));
-      const avgLat = (b.neck.lat_flex_right + b.neck.lat_flex_left) / 2;
-      const avgRot = (b.neck.rotation_right + b.neck.rotation_left) / 2;
-      node.appendChild(tableRows(
-        ['Test', 'Right (°)', 'Left (°)', 'Reference', 'Asymmetry', 'Status'],
-        [
-          ['Neck Lateral Flexion', b.neck.lat_flex_right, b.neck.lat_flex_left, b.neck.lat_flex_ref, b.neck.lat_flex_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.neckLatFlex.score(avgLat))],
-          ['Neck Rotation', b.neck.rotation_right, b.neck.rotation_left, b.neck.rotation_ref, b.neck.rotation_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.neckRotation.score(avgRot))],
-        ]
-      ));
+      const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
+      const fmt = a => (a == null ? '—' : a + '%');
+      const rows = [];
+      if (b.neck.lat_flex_right != null || b.neck.lat_flex_left != null) {
+        const a = b.neck.lat_flex_asym ?? window.TML_SCORING.asymmetryFromLR(b.neck.lat_flex_left, b.neck.lat_flex_right);
+        rows.push(['Neck Lateral Flexion', b.neck.lat_flex_right ?? '—', b.neck.lat_flex_left ?? '—', b.neck.lat_flex_ref, fmt(a),
+          statusPill(asymTier(b.neck.lat_flex_left, b.neck.lat_flex_right))]);
+      }
+      if (b.neck.rotation_right != null || b.neck.rotation_left != null) {
+        const a = b.neck.rotation_asym ?? window.TML_SCORING.asymmetryFromLR(b.neck.rotation_left, b.neck.rotation_right);
+        rows.push(['Neck Rotation', b.neck.rotation_right ?? '—', b.neck.rotation_left ?? '—', b.neck.rotation_ref, fmt(a),
+          statusPill(asymTier(b.neck.rotation_left, b.neck.rotation_right))]);
+      }
+      if (rows.length) {
+        node.appendChild(el('div', { class: 'subhead' }, 'Neck Range of Motion'));
+        node.appendChild(tableRows(['Test', 'Right (°)', 'Left (°)', 'Reference', 'Asymmetry', 'Status'], rows));
+      }
     }
 
     // 4. Trunk ROM
     if (b.trunk) {
-      node.appendChild(el('div', { class: 'subhead' }, '4 · Trunk Range of Motion'));
+      node.appendChild(el('div', { class: 'subhead' }, 'Trunk Range of Motion'));
       const avgLat = b.trunk.lat_flex_right != null && b.trunk.lat_flex_left != null
         ? (b.trunk.lat_flex_right + b.trunk.lat_flex_left) / 2 : null;
       const avgRot = b.trunk.rotation_right != null && b.trunk.rotation_left != null
@@ -227,16 +232,21 @@
         b.trunk.extension_ref, '—',
         statusPill(window.TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(b.trunk.extension))
       ]);
-      if (b.trunk.lat_flex_right != null || b.trunk.lat_flex_left != null) rows.push([
-        'Trunk Lateral Flexion', b.trunk.lat_flex_right ?? '—', b.trunk.lat_flex_left ?? '—',
-        b.trunk.lat_flex_ref, (b.trunk.lat_flex_asym ?? '—') + '%',
-        statusPill(avgLat != null ? window.TML_SCORING.MOVEMENT_TESTS.trunkLatFlex.score(avgLat) : null)
-      ]);
-      if (b.trunk.rotation_right != null || b.trunk.rotation_left != null) rows.push([
-        'Trunk Rotation', b.trunk.rotation_right ?? '—', b.trunk.rotation_left ?? '—',
-        b.trunk.rotation_ref, (b.trunk.rotation_asym ?? '—') + '%',
-        statusPill(avgRot != null ? window.TML_SCORING.MOVEMENT_TESTS.trunkRotation.score(avgRot) : null)
-      ]);
+      // L/R tests: status is the asymmetry tier (NOT the absolute ROM vs reference).
+      const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
+      const fmtAsym = a => (a == null ? '—' : a + '%');
+      if (b.trunk.lat_flex_right != null || b.trunk.lat_flex_left != null) {
+        const a = b.trunk.lat_flex_asym ?? window.TML_SCORING.asymmetryFromLR(b.trunk.lat_flex_left, b.trunk.lat_flex_right);
+        rows.push(['Trunk Lateral Flexion', b.trunk.lat_flex_right ?? '—', b.trunk.lat_flex_left ?? '—',
+          b.trunk.lat_flex_ref, fmtAsym(a),
+          statusPill(asymTier(b.trunk.lat_flex_left, b.trunk.lat_flex_right))]);
+      }
+      if (b.trunk.rotation_right != null || b.trunk.rotation_left != null) {
+        const a = b.trunk.rotation_asym ?? window.TML_SCORING.asymmetryFromLR(b.trunk.rotation_left, b.trunk.rotation_right);
+        rows.push(['Trunk Rotation', b.trunk.rotation_right ?? '—', b.trunk.rotation_left ?? '—',
+          b.trunk.rotation_ref, fmtAsym(a),
+          statusPill(asymTier(b.trunk.rotation_left, b.trunk.rotation_right))]);
+      }
       if (rows.length) node.appendChild(tableRows(
         ['Test', 'Right / Obs (°)', 'Left (°)', 'Reference (°)', 'Asymmetry', 'Status'],
         rows
@@ -245,37 +255,64 @@
 
     // 5. Dynamic
     if (b.dynamic) {
-      node.appendChild(el('div', { class: 'subhead' }, '5 · Dynamic Lower-Body Assessment'));
-      node.appendChild(tableRows(
-        ['Test', 'Right / Value', 'Left / —', 'Asymmetry / Unit', 'Status'],
-        [
-          ['Overhead Squat — Knee Flexion (Max)', b.dynamic.squat_right_deg + '°', b.dynamic.squat_left_deg + '°', b.dynamic.squat_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.squatAsymmetry.score(b.dynamic.squat_asym))],
-          ['Sit-to-Stand × 5', b.dynamic.sit_to_stand_s + ' sec', '—', 'Duration',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.sitToStand.score(b.dynamic.sit_to_stand_s))],
-          ['Countermovement Jump', b.dynamic.cmj_cm + ' cm', '—', 'Jump Height',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(b.dynamic.cmj_cm))],
-        ]
-      ));
+      node.appendChild(el('div', { class: 'subhead' }, 'Dynamic Lower-Body Assessment'));
+      const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
+      const rows = [];
+      if (b.dynamic.squat_right_deg != null || b.dynamic.squat_left_deg != null) {
+        const a = b.dynamic.squat_asym ?? window.TML_SCORING.asymmetryFromLR(b.dynamic.squat_left_deg, b.dynamic.squat_right_deg);
+        rows.push(['Overhead Squat — Knee Flexion (Max)',
+          (b.dynamic.squat_right_deg ?? '—') + '°', (b.dynamic.squat_left_deg ?? '—') + '°',
+          (a ?? '—') + '%',
+          statusPill(asymTier(b.dynamic.squat_left_deg, b.dynamic.squat_right_deg))]);
+      }
+      if (b.dynamic.sit_to_stand_s != null) {
+        rows.push(['Sit-to-Stand × 5', b.dynamic.sit_to_stand_s + ' sec', '—', 'Duration',
+          statusPill(window.TML_SCORING.MOVEMENT_TESTS.sitToStand.score(b.dynamic.sit_to_stand_s))]);
+      }
+      if (b.dynamic.cmj_cm != null) {
+        rows.push(['Countermovement Jump', b.dynamic.cmj_cm + ' cm', '—', 'Jump Height',
+          statusPill(window.TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(b.dynamic.cmj_cm))]);
+      }
+      if (rows.length) node.appendChild(tableRows(['Test', 'Right / Value', 'Left / —', 'Asymmetry / Unit', 'Status'], rows));
     }
 
-    // 6. Strength
+    // 6. Strength — status colour applied to L/R asymmetry %.
     if (b.strength) {
-      node.appendChild(el('div', { class: 'subhead' }, '6 · Strength Assessment'));
-      node.appendChild(tableRows(
-        ['Test', 'Right (N)', 'Left (N)', 'Asymmetry', 'Status'],
-        [
-          ['Grip Strength', b.strength.grip_right_n, b.strength.grip_left_n, b.strength.grip_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.gripAsymmetry.score(b.strength.grip_asym))],
-          ['Quadriceps Strength (Knee Extension)', b.strength.quad_right_n, b.strength.quad_left_n, b.strength.quad_asym + '%',
-            statusPill(window.TML_SCORING.MOVEMENT_TESTS.quadAsymmetry.score(b.strength.quad_asym))],
-        ]
-      ));
+      node.appendChild(el('div', { class: 'subhead' }, 'Strength Assessment'));
+      const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
+      const rows = [];
+      if (b.strength.grip_right_n != null || b.strength.grip_left_n != null) {
+        const a = b.strength.grip_asym ?? window.TML_SCORING.asymmetryFromLR(b.strength.grip_left_n, b.strength.grip_right_n);
+        rows.push(['Grip Strength', b.strength.grip_right_n, b.strength.grip_left_n, (a ?? '—') + '%',
+          statusPill(asymTier(b.strength.grip_left_n, b.strength.grip_right_n))]);
+      }
+      if (b.strength.quad_right_n != null || b.strength.quad_left_n != null) {
+        const a = b.strength.quad_asym ?? window.TML_SCORING.asymmetryFromLR(b.strength.quad_left_n, b.strength.quad_right_n);
+        rows.push(['Quadriceps Strength (Knee Extension)', b.strength.quad_right_n, b.strength.quad_left_n, (a ?? '—') + '%',
+          statusPill(asymTier(b.strength.quad_left_n, b.strength.quad_right_n))]);
+      }
+      if (rows.length) node.appendChild(tableRows(['Test', 'Right (N)', 'Left (N)', 'Asymmetry', 'Status'], rows));
+    }
+
+    // Additional VALD tests not covered by the hardcoded sections
+    // (shoulder, elbow, hip IR, dorsiflexion, etc.)
+    if (Array.isArray(b.additional_tests) && b.additional_tests.length) {
+      node.appendChild(el('div', { class: 'subhead' }, 'Upper Body & Other Tests'));
+      const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
+      const fmtAsym = a => (a == null ? '—' : a + '%');
+      const rows = b.additional_tests.map(t => {
+        const right = t.right ?? t.peak ?? '—';
+        const left  = t.left  ?? t.avg  ?? '—';
+        const asym  = t.asymmetry;
+        return [t.title, right, left, fmtAsym(asym),
+          statusPill(asym != null ? asymTier(t.left, t.right) : null)];
+      });
+      node.appendChild(tableRows(['Test', 'Right / Peak', 'Left / Avg', 'Asymmetry', 'Status'], rows));
     }
 
     // 6b. Dynamo strength (manual, from generator)
     if (Array.isArray(b.dynamo) && b.dynamo.length) {
-      node.appendChild(el('div', { class: 'subhead' }, '6b · Dynamometer — Strength & ROM'));
+      node.appendChild(el('div', { class: 'subhead' }, 'Dynamometer — Strength & ROM'));
       const rows = b.dynamo.map(r => [
         r.label,
         r.left != null ? r.left + ' ' + (r.unit || '') : '—',
@@ -288,7 +325,7 @@
 
     // 7. Questionnaire (compact)
     if (b.questionnaire && window.TML_SCORING.MOVEMENT_QUESTIONNAIRE) {
-      node.appendChild(el('div', { class: 'subhead' }, '7 · Subjective Assessment'));
+      node.appendChild(el('div', { class: 'subhead' }, 'Subjective Assessment'));
       const ths = ['S.No.', 'Question', 'Always', 'More Freq.', 'Rarely', 'Never', 'Score'];
       const rows = window.TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
         const a = (b.questionnaire || [])[i] || {};
@@ -416,7 +453,27 @@
     }
     if (b.metrics && b.metrics.length) {
       node.appendChild(el('div', { class: 'subhead' }, 'Overall Body Composition'));
-      const rows = b.metrics.map(m => [
+      // Per clinical guidance: drop Fat Mass (we already show Fat %), and surface
+      // an estimated Protein % (Lean Mass × 0.20) right after Lean Mass.
+      const filtered = b.metrics.filter(m => !/^fat\s*mass$/i.test(m.metric.trim()));
+      // Compute protein % from lean mass row, if present.
+      const leanRow = filtered.find(m => /^lean\s*mass$/i.test(m.metric.trim()));
+      const weightRow = filtered.find(m => /^weight$/i.test(m.metric.trim()));
+      const lean = leanRow && !isNaN(leanRow.value_num) ? leanRow.value_num : null;
+      const wt   = weightRow && !isNaN(weightRow.value_num) ? weightRow.value_num : null;
+      if (lean != null && wt && wt > 0) {
+        const proteinKg  = +(lean * 0.20).toFixed(1);
+        const proteinPct = +((proteinKg / wt) * 100).toFixed(1);
+        const i = filtered.indexOf(leanRow);
+        filtered.splice(i + 1, 0, {
+          metric: 'Protein (estimate)',
+          value: String(proteinPct), value_num: proteinPct,
+          unit: '% of body weight',
+          status: '20% of lean mass',
+          tier: proteinPct >= 15 ? 'green' : proteinPct >= 12 ? 'yellow' : 'orange',
+        });
+      }
+      const rows = filtered.map(m => [
         m.metric,
         m.value || '—',
         m.unit || '',
@@ -446,7 +503,7 @@
       const b = n.nutrimeter_baseline;
       node.appendChild(el('div', { class: 'subhead' }, 'TML Nutri Meter — Performance & Wellness Check'));
       node.appendChild(el('p', { class: 'muted', style: 'font-size: 9pt' },
-        'The Nutri Meter identifies the frequency of symptoms that indicate poor nutritional status. Scoring is the sum of all responses (range 10–50).'));
+        'The TML Nutrition Screen captures the frequency of symptoms tied to nutritional status. Scoring is the sum of all responses (range 8–40).'));
       // table of questions
       const ths = ['Question (past 3 months — frequency)', 'Never (1)', 'Rarely (2)', 'Sometimes (3)', 'Often (4)', 'Always (5)'];
       const rows = window.TML_SCORING.NUTRI_METER_QUESTIONS.map((q, i) => {
@@ -472,9 +529,9 @@
           el('div', { class: 'subhead', style: 'margin-top:0' }, 'Nutri Meter Wellness Profile'),
           el('div', { class: 'band-table' }, [
             el('div', { class: 'head' }, 'Range'), el('div', { class: 'head' }, 'Band'), el('div', { class: 'head' }, 'Interpretation'), el('div', { class: 'head' }, 'Support'),
-            el('div', {}, '10–20'), el('div', { style:'color:var(--st-green);font-weight:600' }, 'Optimal'), el('div', {}, 'Patterns support energy, focus and recovery.'), el('div', {}, 'Preventive guidance.'),
-            el('div', {}, '21–35'), el('div', { style:'color:var(--st-yellow);font-weight:600' }, 'Compromised'), el('div', {}, 'Subtle signs nutrition is affecting performance.'), el('div', {}, 'Early intervention.'),
-            el('div', {}, '36–50'), el('div', { style:'color:var(--st-red);font-weight:600' }, 'Impaired'), el('div', {}, 'Affecting recovery, mental clarity and day-to-day performance.'), el('div', {}, '1:1 clinical consultation.'),
+            el('div', {}, '8–16'),  el('div', { style:'color:var(--st-green);font-weight:600' }, 'Optimal'),     el('div', {}, 'Habits aligned with good wellbeing.'), el('div', {}, 'Preventive guidance.'),
+            el('div', {}, '17–28'), el('div', { style:'color:var(--st-yellow);font-weight:600' }, 'Compromised'), el('div', {}, 'Subtle nutrition-related symptoms.'), el('div', {}, 'Targeted support.'),
+            el('div', {}, '29–40'), el('div', { style:'color:var(--st-red);font-weight:600' }, 'Impaired'),     el('div', {}, 'Symptom cluster suggesting impaired nourishment.'), el('div', {}, '1:1 nutritionist consultation.'),
           ]),
         ]),
       ]));

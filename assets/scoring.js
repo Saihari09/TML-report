@@ -118,6 +118,20 @@ const MOVEMENT_TESTS = {
   },
 };
 
+// Asymmetry % from left/right values.
+// Definition: |L - R| / max(L, R) × 100, rounded to 1 dp.
+// Returns null if either side is missing/zero.
+function asymmetryFromLR(left, right) {
+  if (left == null || right == null) return null;
+  const a = Math.abs(left - right);
+  const m = Math.max(Math.abs(left), Math.abs(right));
+  if (m === 0) return null;
+  return Math.round((a / m) * 1000) / 10;
+}
+
+// Tier label text (shown inside the status pill alongside the colour).
+const TIER_LABEL = { green: 'NORMAL', yellow: 'MILD', orange: 'MODERATE', red: 'URGENT' };
+
 // Dynamo strength tests — value is the lower-side / higher-side ratio (asymmetry %).
 // Scoring is the same as asymmetryGeneric. Absolute force is reported but not banded
 // (norms depend heavily on age / sex / handedness — clinical team to tune later).
@@ -138,21 +152,18 @@ const DYNAMO_TESTS = {
   hip_flexion_rom:        { label: "Hip Flexion — Peak ROM",     unit: "°" },
 };
 
-// Movement subjective questionnaire (12 items, each 1-4)
-// Wording follows the template literally; "score" is 1=Always..4=Never (with sign flip for "good" items)
+// TML Movement Questionnaire — clinical screen (9 items, 1-4 frequency).
+// Based on the STarT Back / Keele MSK short-form pattern. Team will edit wording.
 const MOVEMENT_QUESTIONNAIRE = [
-  { id: 1, q: "Pain in back, neck or hands after sitting continuously for 2 hours", reverse: false },
-  { id: 2, q: "Posture starting to slump after 2 hours of sitting", reverse: false },
-  { id: 3, q: "Sitting >2 hours without breaks (stand, stretch, walk)", reverse: false },
-  { id: 4, q: "Focus disturbed due to bodily discomfort", reverse: false },
-  { id: 5, q: "Exercising every day", reverse: true },
-  { id: 6, q: "Body region feels stiff and tight", reverse: false },
-  { id: 7, q: "Experience muscle cramps", reverse: false },
-  { id: 8, q: "Need to adjust sitting position frequently due to discomfort", reverse: false },
-  { id: 9, q: "Tendency to lean forward toward the screen while working", reverse: false },
-  { id: 10, q: "Fingers/wrists sore after typing for long periods", reverse: false },
-  { id: 11, q: "Cross legs while sitting", reverse: false },
-  { id: 12, q: "Numbness, tingling or radiating pain in arms or legs", reverse: false },
+  { id: 1, q: "Pain in the back, neck, or shoulders over the past 2 weeks", reverse: false },
+  { id: 2, q: "Pain travelling down a limb (radiating pain) in the past 2 weeks", reverse: false },
+  { id: 3, q: "Difficulty walking, climbing stairs, or standing for long periods", reverse: false },
+  { id: 4, q: "Stiffness or restricted movement in any joint", reverse: false },
+  { id: 5, q: "Engaging in structured physical activity (≥30 min) on most days", reverse: true },
+  { id: 6, q: "Sleep disturbed by musculoskeletal pain or discomfort", reverse: false },
+  { id: 7, q: "Pain or discomfort affects mood / concentration", reverse: false },
+  { id: 8, q: "Avoiding activities you used to do because of pain or fear of pain", reverse: false },
+  { id: 9, q: "Confidence in your body's strength and capability", reverse: true },
 ];
 // answers: { always:1, more_freq:2, rarely:3, never:4 } — reverse-coded for "good" items
 function scoreMovementQuestion(answerKey, reverse) {
@@ -185,25 +196,26 @@ function movementBand(scaled100) {
 }
 
 // -----------------------------------------------------------------------------
-// Nutri Meter (10 items, 1-5 each)
+// TML Nutrition Screen — clinical (8 items, 1-5 frequency).
+// Based on MUST / SF-MNA / dietary-symptom screening patterns.
+// Team will edit wording.
 // -----------------------------------------------------------------------------
 const NUTRI_METER_QUESTIONS = [
-  "I feel mentally exhausted and unable to give my best at work",
-  "I struggle to concentrate without getting easily distracted during work",
-  "I experience an afternoon energy crash that affects my work",
-  "I wake up feeling unrefreshed even after a full night's sleep",
-  "I struggle to fall asleep or feel 'tired but wired' at night",
-  "I experience bloating, heaviness or discomfort after meals",
-  "I frequently crave sugar, caffeine or salty foods to get through the day",
-  "My mood feels harder to manage than usual",
-  "I feel physically tired even after normal daily activities",
-  "I notice changes like dull skin, dryness or acne more than usual",
+  "Unintentional weight change (up or down) in the past 3 months",
+  "Skipping meals or eating fewer than 3 meals on most days",
+  "Frequent cravings for sugar, salty, or processed foods",
+  "Bloating, heaviness or discomfort after meals",
+  "Low energy or afternoon crashes affecting daily activity",
+  "Constipation or irregular bowel habits",
+  "Inadequate water intake (less than 2 L/day for most days)",
+  "Reliance on caffeine to get through the day",
 ];
 function nutriMeterBand(total) {
   if (total == null) return null;
-  if (total <= 20) return { tier: 'green',  label: 'Optimal Nourishment',     blurb: 'Patterns support energy, focus and recovery. Habits aligned with good wellbeing.' };
-  if (total <= 35) return { tier: 'yellow', label: 'Compromised Nourishment', blurb: 'Subtle signs that nutrition may be affecting concentration, performance and overall health.' };
-  return { tier: 'red', label: 'Impaired Nourishment', blurb: 'Symptom combination may be affecting recovery, mental clarity and day-to-day performance.' };
+  // 8 items × 5 = 40 max. Bands proportionally rescaled from the prior 10/50.
+  if (total <= 16) return { tier: 'green',  label: 'Optimal Nourishment',     blurb: 'Habits aligned with good wellbeing.' };
+  if (total <= 28) return { tier: 'yellow', label: 'Compromised Nourishment', blurb: 'Subtle nutrition-related symptoms; targeted support advised.' };
+  return { tier: 'red', label: 'Impaired Nourishment', blurb: '1:1 nutritionist consultation recommended.' };
 }
 
 // -----------------------------------------------------------------------------
@@ -331,7 +343,7 @@ const BIOMARKER_GROUPS = [
 // Export
 // -----------------------------------------------------------------------------
 window.TML_SCORING = {
-  TIER, tierFromScore,
+  TIER, TIER_LABEL, tierFromScore,
   MOVEMENT_TESTS, MOVEMENT_QUESTIONNAIRE, scoreMovementQuestion,
   DYNAMO_TESTS,
   movementComposite, movementBand,
@@ -339,4 +351,5 @@ window.TML_SCORING = {
   pss10Band, psqiBand,
   BODY_COMP,
   BIOMARKERS, BIOMARKER_GROUPS, scoreBiomarker, bandFromRange,
+  asymmetryFromLR,
 };
