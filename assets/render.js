@@ -41,15 +41,17 @@
   // ----- Cover -----
   function renderCover(c) {
     const p = c.patient || {};
+    const dash = (v) => (v && String(v).trim()) ? v : '—';
+    const ageSex = [p.age ? `${p.age} years` : null, p.sex || null].filter(Boolean).join('  ·  ') || '—';
     const kv = [
-      ['Report Date',         p.endpoint_date || ''],
-      ['Programme',           p.programme || ''],
-      ['Patient Name',        p.name || ''],
-      ['Age / Sex',           `${p.age || ''} years  ·  ${p.sex || ''}`],
-      ['Patient ID',          p.patient_id || p.employee_id || ''],
-      ['Assessment Date',     p.endpoint_date || ''],
-      ['Referring Physician', p.referring_physician || ''],
-      ['Reviewed by',         p.authored_by || ''],
+      ['Report Date',         dash(p.endpoint_date)],
+      ['Programme',           dash(p.programme)],
+      ['Patient Name',        dash(p.name)],
+      ['Age / Sex',           ageSex],
+      ['Patient ID',          dash(p.patient_id || p.employee_id)],
+      ['Assessment Date',     dash(p.endpoint_date)],
+      ['Referring Physician', dash(p.referring_physician)],
+      ['Reviewed by',         dash(p.authored_by)],
     ];
     const grid = el('div', { class: 'kv-grid' });
     kv.forEach(([k, v]) => {
@@ -85,6 +87,7 @@
       ['Medication / Supplements', b.medication],
       ['Red-Flag Screen', b.red_flags],
     ].filter(([, v]) => v);
+    if (!rows.length) return null;
     const tbody = el('tbody');
     rows.forEach(([k, v]) => {
       tbody.appendChild(el('tr', {}, [
@@ -183,7 +186,7 @@
     }
 
     // 2. Posture
-    if (b.posture) {
+    if (b.posture && b.posture.shoulder_drop_cm != null) {
       node.appendChild(el('div', { class: 'subhead' }, 'Posture Assessment'));
       node.appendChild(tableRows(
         ['Test', 'Shoulder Drop (cm)', 'Status'],
@@ -255,7 +258,6 @@
 
     // 5. Dynamic
     if (b.dynamic) {
-      node.appendChild(el('div', { class: 'subhead' }, 'Dynamic Lower-Body Assessment'));
       const asymTier = (l, r) => window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(window.TML_SCORING.asymmetryFromLR(l, r));
       const rows = [];
       if (b.dynamic.squat_right_deg != null || b.dynamic.squat_left_deg != null) {
@@ -273,7 +275,10 @@
         rows.push(['Countermovement Jump', b.dynamic.cmj_cm + ' cm', '—', 'Jump Height',
           statusPill(window.TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(b.dynamic.cmj_cm))]);
       }
-      if (rows.length) node.appendChild(tableRows(['Test', 'Right / Value', 'Left / —', 'Asymmetry / Unit', 'Status'], rows));
+      if (rows.length) {
+        node.appendChild(el('div', { class: 'subhead' }, 'Dynamic Lower-Body Assessment'));
+        node.appendChild(tableRows(['Test', 'Right / Value', 'Left / —', 'Asymmetry / Unit', 'Status'], rows));
+      }
     }
 
     // 6. Strength — status colour applied to L/R asymmetry %.
@@ -372,11 +377,9 @@
     // Endpoint comparison + recommendations on a second page (omit if no endpoint data)
     if (!m.endpoint && !(m.recs && m.recs.length)) return [node];
 
-    const node2 = el('div', { class: 'page' }, [
-      brandBand(),
-      el('div', { class: 'section-bar' }, m.endpoint ? 'MOVEMENT — BASELINE vs END-POINT COMPARISON' : 'MOVEMENT — RECOMMENDATIONS'),
-    ]);
+    const node2 = el('div', { class: 'page' }, [brandBand()]);
     if (m.endpoint) {
+      node2.appendChild(el('div', { class: 'section-bar' }, 'MOVEMENT — BASELINE vs END-POINT COMPARISON'));
       node2.appendChild(el('p', { class: 'intro' }, 'End-point measurements taken after the programme cycle.'));
       const rows = Object.entries(m.endpoint).map(([k, v]) => [
         prettyKey(k), v.baseline, v.endpoint, v.delta, statusPill(v.tier),
@@ -398,25 +401,52 @@
   }
 
   // ----- Movement gallery: rep photos extracted from the VALD HumanTrak PDF -----
+  // Polished card: photo on top, structured values block underneath (NOT image text).
   function renderMovementGallery(c) {
     const tests = c.movement && c.movement.baseline && c.movement.baseline.vald_tests;
     if (!tests) return null;
     const withImg = Object.values(tests).filter(t => t && t.image);
     if (!withImg.length) return null;
+
+    const valuesFor = (t) => {
+      const pairs = [];
+      if (t.peak != null) pairs.push(['Peak', t.peak + (t.title && /flex|ext|rotation|abd|posture|dorsi/i.test(t.title) ? '°' : '')]);
+      if (t.avg  != null) pairs.push(['Average', t.avg + (t.title && /flex|ext|rotation|abd|posture|dorsi/i.test(t.title) ? '°' : '')]);
+      if (t.left != null && t.right != null) {
+        pairs.push(['Left',  t.left  + (typeof t.left  === 'number' ? '°' : '')]);
+        pairs.push(['Right', t.right + (typeof t.right === 'number' ? '°' : '')]);
+      }
+      if (t.asymmetry != null) pairs.push(['Asymmetry', t.asymmetry + '%']);
+      return pairs;
+    };
+    const asymTierFor = (t) =>
+      t.asymmetry != null
+        ? window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(t.asymmetry)
+        : null;
+
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, 'HUMANTRAK — REP SNAPSHOTS'),
-      el('p', { class: 'intro' }, 'Reference frames from the HumanTrak motion-capture session. Captured at the rep that produced the peak value for each test.'),
+      el('p', { class: 'intro' }, 'Reference frames from the HumanTrak motion-capture session, captured at the rep that produced the peak value for each test.'),
     ]);
-    const grid = el('div', { style: 'display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px;' });
+    const grid = el('div', { class: 'snap-grid' });
     for (const t of withImg) {
-      const card = el('div', { style: 'background:#fff; border:1px solid var(--tml-line); border-radius:4px; padding:10px;' }, [
-        el('div', { style: 'font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tml-burgundy); font-weight: 600; margin-bottom: 6px;' }, t.title || ''),
-        el('img', { src: t.image, alt: t.title || '', style: 'width: 100%; display: block; border-radius: 3px;' }),
-        el('div', { style: 'font-size: 9pt; color: var(--tml-muted); margin-top: 6px;' },
-          [t.peak != null ? `Peak ${t.peak}` : (t.left != null ? `L ${t.left} / R ${t.right}` : ''),
-           t.avg != null ? `Avg ${t.avg}` : '',
-           t.asymmetry != null ? `Asymmetry ${t.asymmetry}%` : ''].filter(Boolean).join('  ·  ')),
+      const tier = asymTierFor(t);
+      const meta = el('div', { class: 'snap-meta' });
+      for (const [k, v] of valuesFor(t)) {
+        meta.appendChild(el('div', { class: 'snap-row' }, [
+          el('span', { class: 'k' }, k),
+          el('span', { class: 'v' }, String(v)),
+        ]));
+      }
+      if (tier) meta.appendChild(el('div', { class: 'snap-row', style: 'margin-top:4px' }, [
+        el('span', { class: 'k' }, 'Status'),
+        statusPill(tier),
+      ]));
+      const card = el('div', { class: 'snap-card' }, [
+        el('div', { class: 'snap-title' }, t.title || ''),
+        el('div', { class: 'snap-photo' }, el('img', { src: t.image, alt: t.title || '' })),
+        meta,
       ]);
       grid.appendChild(card);
     }
@@ -489,6 +519,10 @@
   // ----- Nutrition -----
   function renderNutrition(c) {
     const n = c.nutrition || {};
+    const hasBodyComp = Array.isArray(n.body_comp) && n.body_comp.length > 0;
+    const hasNutri    = n.nutrimeter_baseline && n.nutrimeter_baseline.total > 0;
+    const hasRecs     = Array.isArray(n.recs) && n.recs.length > 0;
+    if (!hasBodyComp && !hasNutri && !hasRecs) return null;
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '02'), '  NUTRITIONAL STATUS']),
@@ -549,6 +583,9 @@
   // ----- Wellbeing -----
   function renderWellbeing(c) {
     const w = c.wellbeing || {};
+    const hasRows = Array.isArray(w.rows) && w.rows.length > 0;
+    const hasRecs = Array.isArray(w.recs) && w.recs.length > 0;
+    if (!hasRows && !hasRecs) return null;
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '03'), '  MENTAL WELLBEING']),
@@ -590,6 +627,10 @@
   // ----- Blood (used by blood.html and combined report) -----
   function renderBlood(c) {
     const b = c.blood || {};
+    // Skip the entire section if no biomarkers AND no recommendations.
+    const hasValues = b.values && Object.keys(b.values).length > 0;
+    const hasRecs   = Array.isArray(b.recs) && b.recs.length > 0;
+    if (!hasValues && !hasRecs) return null;
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, b.section_num || '04'), '  BLOOD BIOMARKERS']),
@@ -636,10 +677,15 @@
   // ----- Integrated summary -----
   function renderIntegrated(c) {
     const i = c.integrated || {};
+    const hasObs  = Array.isArray(i.observations) && i.observations.length > 0;
+    const hasCont = Array.isArray(i.continue) && i.continue.length > 0;
+    const hasAtt  = Array.isArray(i.attention) && i.attention.length > 0;
+    const hasNext = i.next_step && i.next_step.trim().length > 30;  // skip the auto stub
+    if (!hasObs && !hasCont && !hasAtt && !hasNext) return null;
     const node = el('div', { class: 'page' }, [
       brandBand(),
-      el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '05'), '  INTEGRATED SUMMARY & NEXT STEPS']),
-      el('p', { class: 'intro' }, 'The following summary draws together observations across all domains. Where parameters intersect — e.g. stress impacting sleep impacting physical recovery, or weight loss impacting joint loading and metabolic markers — these connections are noted here.'),
+      el('div', { class: 'section-bar' }, 'INTEGRATED SUMMARY & NEXT STEPS'),
+      el('p', { class: 'intro' }, 'The following summary draws together observations across the assessed domains. Where parameters intersect — e.g. asymmetry impacting joint loading, or stress impacting sleep impacting recovery — these connections are noted here.'),
     ]);
     if (i.observations) {
       node.appendChild(el('div', { class: 'subhead' }, 'Key Observations'));
@@ -698,7 +744,7 @@
     host.innerHTML = '';
     const include = opts.include || ['cover', 'background', 'summary', 'movement', 'nutrition', 'wellbeing', 'blood', 'integrated'];
     if (include.includes('cover'))      host.appendChild(renderCover(caseData));
-    if (include.includes('background')) host.appendChild(renderBackground(caseData));
+    if (include.includes('background')) { const bg = renderBackground(caseData); if (bg) host.appendChild(bg); }
     if (include.includes('summary'))    host.appendChild(renderSummary(caseData));
     if (include.includes('movement'))   renderMovement(caseData).forEach(p => host.appendChild(p));
     if (include.includes('bca') && caseData.bca) {
@@ -709,10 +755,13 @@
       const gallery = renderMovementGallery(caseData);
       if (gallery) host.appendChild(gallery);
     }
-    if (include.includes('nutrition'))  host.appendChild(renderNutrition(caseData));
-    if (include.includes('wellbeing'))  host.appendChild(renderWellbeing(caseData));
-    if (include.includes('blood') && caseData.blood)     host.appendChild(renderBlood(caseData));
-    if (include.includes('integrated')) host.appendChild(renderIntegrated(caseData));
+    if (include.includes('nutrition')) { const nut = renderNutrition(caseData); if (nut) host.appendChild(nut); }
+    if (include.includes('wellbeing')) { const wb  = renderWellbeing(caseData); if (wb)  host.appendChild(wb); }
+    if (include.includes('blood') && caseData.blood)     { const blood = renderBlood(caseData); if (blood) host.appendChild(blood); }
+    if (include.includes('integrated')) {
+      const integ = renderIntegrated(caseData);
+      if (integ) host.appendChild(integ);
+    }
   }
 
   window.TML_RENDER = { render, renderCover, renderBackground, renderSummary, renderMovement, renderMovementGallery, renderBCA, renderNutrition, renderWellbeing, renderBlood, renderIntegrated };

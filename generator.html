@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report Generator</title>
-<link rel="stylesheet" href="./assets/report.css?v=20260617" />
-<link rel="stylesheet" href="./assets/app.css?v=20260617" />
+<link rel="stylesheet" href="./assets/report.css?v=20260618" />
+<link rel="stylesheet" href="./assets/app.css?v=20260618" />
 <style>
   .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
   .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
@@ -85,18 +85,25 @@
       <div><label>Referring physician (optional)</label><input id="p_ref" placeholder="Dr. ..." /></div>
     </div>
     <p class="app-subtitle" style="margin: 4px 0 8px;">Package determines which sections appear in the generated report.</p>
-    <div class="pkgs" id="pkgs">
+    <div class="pkgs" id="pkgs" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="pkg-card" data-pkg="pkg0">
+        <h3>HumanTrak Only</h3>
+        <p class="desc">Movement screen, no labs.</p>
+        <div class="tags">
+          <span class="tag">Movement</span>
+        </div>
+      </div>
       <div class="pkg-card" data-pkg="pkg1">
-        <h3>Blood & Movement Analysis</h3>
-        <p class="desc">One-time baseline assessment.</p>
+        <h3>Blood &amp; Movement</h3>
+        <p class="desc">Baseline assessment.</p>
         <div class="tags">
           <span class="tag">Blood</span>
           <span class="tag">Movement</span>
         </div>
       </div>
       <div class="pkg-card selected" data-pkg="pkg2">
-        <h3>Comprehensive Movement Plan</h3>
-        <p class="desc">12–24 wk, includes nutrition.</p>
+        <h3>Comprehensive</h3>
+        <p class="desc">12–24 wk, with nutrition.</p>
         <div class="tags">
           <span class="tag">Blood</span>
           <span class="tag">Movement</span>
@@ -105,7 +112,7 @@
       </div>
       <div class="pkg-card" data-pkg="pkg3">
         <h3>Holistic Wellness</h3>
-        <p class="desc">Full programme + mental wellbeing.</p>
+        <p class="desc">Full programme + mental.</p>
         <div class="tags">
           <span class="tag">Blood</span>
           <span class="tag">Movement</span>
@@ -211,7 +218,7 @@
   <div id="reportHost"></div>
 </div>
 
-<script src="./assets/auth.js?v=20260617"></script>
+<script src="./assets/auth.js?v=20260618"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
@@ -220,10 +227,10 @@
   window.pdfjsLib = pdfjs;
   window.dispatchEvent(new Event('pdfjs-ready'));
 </script>
-<script src="./assets/scoring.js?v=20260617"></script>
-<script src="./assets/render.js?v=20260617"></script>
-<script src="./assets/parsers.js?v=20260617"></script>
-<script src="./assets/sample-data.js?v=20260617"></script>
+<script src="./assets/scoring.js?v=20260618"></script>
+<script src="./assets/render.js?v=20260618"></script>
+<script src="./assets/parsers.js?v=20260618"></script>
+<script src="./assets/sample-data.js?v=20260618"></script>
 
 <script>
 // --- state -------------------------------------------------------------------
@@ -238,9 +245,16 @@ const state = {
 };
 
 const PKG_INCLUDES = {
+  pkg0: ['cover', 'movement', 'movement_images'],
   pkg1: ['cover', 'background', 'movement', 'movement_images', 'blood', 'integrated'],
   pkg2: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'integrated'],
   pkg3: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'wellbeing', 'integrated'],
+};
+const PKG_NAME = {
+  pkg0: 'HumanTrak Movement Screen',
+  pkg1: 'Blood & Movement Analysis',
+  pkg2: 'Comprehensive Movement Plan',
+  pkg3: 'Holistic Wellness Programme',
 };
 
 // --- package selector --------------------------------------------------------
@@ -256,6 +270,10 @@ function updateSectionVisibility() {
   const inc = PKG_INCLUDES[state.pkg] || [];
   document.getElementById('sec_nutrition').style.display = inc.includes('nutrition') ? '' : 'none';
   document.getElementById('sec_mental').style.display    = inc.includes('wellbeing') ? '' : 'none';
+  // For HumanTrak-only mode, hint that blood/BCA/etc are not needed
+  const isMovementOnly = state.pkg === 'pkg0';
+  const recsBlood = document.getElementById('recs_blood');
+  if (recsBlood) recsBlood.parentElement.style.display = isMovementOnly ? 'none' : '';
 }
 updateSectionVisibility();
 
@@ -728,7 +746,7 @@ document.getElementById('generate').addEventListener('click', () => {
       endpoint_date: document.getElementById('p_date').value,
       patient_id: document.getElementById('p_pid').value,
       referring_physician: document.getElementById('p_ref').value,
-      programme: { pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness' }[state.pkg],
+      programme: PKG_NAME[state.pkg],
       authored_by: TML_AUTH.getSession()?.user || '',
     },
     movement: { baseline, recs: recs_movement },
@@ -745,7 +763,7 @@ document.getElementById('generate').addEventListener('click', () => {
       recs: recs_mental,
     },
     integrated: { observations: [], continue: [], attention: [],
-      next_step: `Recommended next step depends on findings above. Programme enrolled: ${{ pkg1: 'Blood & Movement Analysis', pkg2: 'Comprehensive Movement Plan', pkg3: 'Holistic Wellness Package' }[state.pkg]}.` },
+      next_step: `Programme: ${PKG_NAME[state.pkg]}. Recommended next steps depend on findings above.` },
   };
 
   const host = document.getElementById('reportHost');

@@ -284,6 +284,71 @@ table.r td.center, table.r th.center { text-align: center; }
 .recs { padding-left: 18px; margin: 6px 0 0 0; }
 .recs li { margin-bottom: 6px; font-size: 9.5pt; }
 
+/* HumanTrak rep-snapshot gallery */
+.snap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 14px;
+  margin: 10px 0 4px 0;
+}
+.snap-card {
+  background: #fff;
+  border: 1px solid var(--tml-line);
+  border-top: 3px solid var(--tml-burgundy);
+  border-radius: 4px;
+  padding: 12px 12px 10px;
+  break-inside: avoid;
+}
+.snap-title {
+  font-size: 9.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tml-burgundy);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.snap-photo {
+  background: var(--tml-cream-dark);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.snap-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: contain;
+}
+.snap-meta {
+  font-size: 9pt;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.snap-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dotted var(--tml-line);
+  padding: 2px 0;
+}
+.snap-row:last-child { border-bottom: 0; }
+.snap-row .k {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 7.5pt;
+  color: var(--tml-muted);
+}
+.snap-row .v {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--tml-ink);
+}
+
 /* Print */
 @media print {
   body.report { background: #fff; }

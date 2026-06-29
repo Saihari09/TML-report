@@ -346,17 +346,21 @@
         page: p,
       };
 
-      // Render the rep-photo region as a thumbnail for the TML report.
-      // PDF.js canvas has y=0 at top; rep-photo card sits at top-origin y≈130-320.
+      // Render JUST the rep-photo card (no chart text), so the report card stays clean.
+      // PDF.js canvas has y=0 at top; rep-photo card sits at top-origin y≈130-330,
+      // x≈30-265 for single-rep pages and x≈30-360 for L/R dual-rep pages.
       try {
-        const renderScale = 1.2;
+        const renderScale = 2.0;            // higher DPI for sharp print
         const renderVp = page.getViewport({ scale: renderScale });
         const canvas = document.createElement('canvas');
         canvas.width = renderVp.width;
         canvas.height = renderVp.height;
         await page.render({ canvasContext: canvas.getContext('2d'), viewport: renderVp }).promise;
-        // Crop coords in unscaled PDF top-origin space; multiplied by renderScale below.
-        const cropPdf = { x: 28, y: 130, w: 340, h: 200 };
+        // Detect dual-rep tests by counting "Rep N" labels in the left half.
+        const repCount = items.filter(it => /^Rep\b/i.test(it.s) && it.x < 240).length;
+        const cropPdf = repCount > 1
+          ? { x: 28, y: 130, w: 260, h: 210 }   // L+R photos side-by-side (stops before chart)
+          : { x: 28, y: 130, w: 240, h: 210 };  // single photo
         const out = document.createElement('canvas');
         out.width  = Math.round(cropPdf.w * renderScale);
         out.height = Math.round(cropPdf.h * renderScale);
@@ -365,7 +369,8 @@
           cropPdf.w * renderScale, cropPdf.h * renderScale,
           0, 0, out.width, out.height
         );
-        tests[key].image = out.toDataURL('image/jpeg', 0.72);
+        tests[key].image = out.toDataURL('image/jpeg', 0.78);
+        tests[key].image_aspect = out.width / out.height; // for clean card layout
       } catch (e) { console.warn('thumb extract failed for', testName, e); }
     }
 
