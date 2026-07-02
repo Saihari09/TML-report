@@ -328,46 +328,24 @@
       node.appendChild(tableRows(['Test', 'Left', 'Right', 'Asymmetry', 'Status'], rows));
     }
 
-    // 7. Questionnaire (compact)
-    if (b.questionnaire && window.TML_SCORING.MOVEMENT_QUESTIONNAIRE) {
-      node.appendChild(el('div', { class: 'subhead' }, 'Subjective Assessment'));
-      const ths = ['S.No.', 'Question', 'Always', 'More Freq.', 'Rarely', 'Never', 'Score'];
-      const rows = window.TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
-        const a = (b.questionnaire || [])[i] || {};
-        const tick = (key) => a.answer === key ? '✓' : '';
-        return [
-          q.id,
-          q.q,
-          el('td', { class: 'center' }, tick('always')),
-          el('td', { class: 'center' }, tick('more_freq')),
-          el('td', { class: 'center' }, tick('rarely')),
-          el('td', { class: 'center' }, tick('never')),
-          el('td', { class: 'center', style: 'font-weight:600' }, a.score || ''),
-        ];
-      });
-      node.appendChild(tableRowsRaw(ths, rows));
-      node.appendChild(el('p', { class: 'muted', style: 'font-size: 8.5pt; margin-top:4px;' },
-        'Scoring:  Always — 1   More Frequently — 2   Rarely — 3   Never — 4'));
-    }
-
-    // Composite
+    // Composite — computed from movement tests only (questionnaire removed per clinical request).
     if (b.composite) {
       const tier = b.composite.tier;
       node.appendChild(el('div', { class: 'composite' }, [
         el('div', {}, [
-          el('div', { class: 'score-label' }, 'Total Score'),
+          el('div', { class: 'score-label' }, 'Movement Score'),
           el('div', { class: 'score-num' }, [String(b.composite.scaled), el('small', {}, ' / 100')]),
           el('div', { class: 'verdict-band', style: `background: var(--st-${tier}-bg); color: var(--st-${tier})` }, b.composite.label),
         ]),
         el('div', {}, [
           el('div', { class: 'subhead', style: 'margin-top:0' }, 'Scoring Reference'),
           el('p', { class: 'muted', style: 'font-size: 9pt; margin:4px 0' },
-            '12 movement tests + 12 questionnaire items = 24 components. Maximum: 24 × 4 = 96. Each component is scored Red 1, Orange 2, Yellow 3, Green 4 and summed (presented out of 100).'),
+            `Composite of ${b.composite.n || 'all measured'} movement tests. Each test is scored Red 1, Orange 2, Yellow 3, Green 4 and the sum is presented out of 100.`),
           el('div', { class: 'band-table' }, [
-            el('div', { class: 'head' }, 'Range'), el('div', { class: 'head' }, 'Band'), el('div', { class: 'head' }, 'Interpretation'), el('div', { class: 'head' }, 'Programme'),
+            el('div', { class: 'head' }, 'Range'), el('div', { class: 'head' }, 'Band'), el('div', { class: 'head' }, 'Interpretation'), el('div', { class: 'head' }, 'Action'),
             el('div', {}, '25–50'), el('div', { style:'color:var(--st-red);font-weight:600' }, 'Urgent Intervention'), el('div', {}, 'Poor mobility & function. At risk of worsening symptoms or injury.'), el('div', {}, 'MANDATORY'),
-            el('div', {}, '51–75'), el('div', { style:'color:var(--st-orange);font-weight:600' }, 'Significant Issue'), el('div', {}, 'Early functional limitations. Symptoms increasing with work duration.'), el('div', {}, 'STRONGLY RECOMMENDED'),
-            el('div', {}, '76–100'), el('div', { style:'color:var(--st-green);font-weight:600' }, 'Normal'), el('div', {}, 'Good mobility & function. No major work limitations.'), el('div', {}, 'OPTIONAL / ENCOURAGED'),
+            el('div', {}, '51–75'), el('div', { style:'color:var(--st-orange);font-weight:600' }, 'Significant Issue'), el('div', {}, 'Early functional limitations.'), el('div', {}, 'STRONGLY RECOMMENDED'),
+            el('div', {}, '76–100'), el('div', { style:'color:var(--st-green);font-weight:600' }, 'Normal'), el('div', {}, 'Good mobility & function.'), el('div', {}, 'MAINTAIN / ENCOURAGE'),
           ]),
         ]),
       ]));
@@ -482,35 +460,61 @@
       node.appendChild(grid);
     }
     if (b.metrics && b.metrics.length) {
-      node.appendChild(el('div', { class: 'subhead' }, 'Overall Body Composition'));
-      // Per clinical guidance: drop Fat Mass (we already show Fat %), and surface
-      // an estimated Protein % (Lean Mass × 0.20) right after Lean Mass.
-      const filtered = b.metrics.filter(m => !/^fat\s*mass$/i.test(m.metric.trim()));
-      // Compute protein % from lean mass row, if present.
-      const leanRow = filtered.find(m => /^lean\s*mass$/i.test(m.metric.trim()));
-      const weightRow = filtered.find(m => /^weight$/i.test(m.metric.trim()));
-      const lean = leanRow && !isNaN(leanRow.value_num) ? leanRow.value_num : null;
-      const wt   = weightRow && !isNaN(weightRow.value_num) ? weightRow.value_num : null;
-      if (lean != null && wt && wt > 0) {
-        const proteinKg  = +(lean * 0.20).toFixed(1);
-        const proteinPct = +((proteinKg / wt) * 100).toFixed(1);
-        const i = filtered.indexOf(leanRow);
-        filtered.splice(i + 1, 0, {
-          metric: 'Protein (estimate)',
-          value: String(proteinPct), value_num: proteinPct,
-          unit: '% of body weight',
-          status: '20% of lean mass',
-          tier: proteinPct >= 15 ? 'green' : proteinPct >= 12 ? 'yellow' : 'orange',
-        });
+      const S = window.TML_SCORING;
+      const sex = (c.patient && c.patient.sex || '').toLowerCase();
+      const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const byName = {};
+      b.metrics.forEach(m => { byName[norm(m.metric)] = m.value_num; });
+      const pick = (...keys) => { for (const k of keys) { const v = byName[norm(k)]; if (v != null && !isNaN(v)) return v; } return null; };
+
+      // Derive the seven scored parameters.
+      const weight   = pick('weight');
+      const leanMass = pick('lean mass');
+      const smm      = pick('skeletal muscle mass');
+      const proteinPct = (leanMass != null && weight) ? +(((leanMass * 0.20) / weight) * 100).toFixed(1) : null;
+      const values = {
+        bmi:                  pick('body mass index bmi', 'bmi'),
+        body_fat_pct:         pick('fat percentage', 'body fat percentage'),
+        skeletal_muscle_mass: smm,
+        skeletal_muscle_pct:  pick('skeletal muscle percentage'),
+        protein_pct:          proteinPct,
+        lean_mass_pct:        pick('lean mass percentage'),
+        water_pct:            pick('water percentage', 'total body water percentage'),
+      };
+      // Score each; SMM(kg) scored via its %-of-weight proxy against the muscle-% band.
+      const smmPct = (smm != null && weight) ? +((smm / weight) * 100).toFixed(1) : null;
+      const smPctScorer = S.BCA_PARAMS.find(p => p.key === 'skeletal_muscle_pct').score;
+
+      let points = 0, counted = 0;
+      const rows = S.BCA_PARAMS.map(p => {
+        const v = values[p.key];
+        let tier = p.key === 'skeletal_muscle_mass' ? smPctScorer(smmPct, sex) : p.score(v, sex);
+        if (tier) { points += S.tierToPoints(tier); counted++; }
+        const shownVal = v == null ? '—' : (p.key === 'skeletal_muscle_mass' && smmPct != null ? `${v} (${smmPct}%)` : String(v));
+        return [p.label, shownVal, p.unit, statusPill(tier)];
+      });
+
+      const scaled28 = counted ? Math.round((points / (counted * 4)) * S.BCA_MAX) : null;
+      const band = S.bcaBand(scaled28, S.BCA_MAX);
+
+      node.appendChild(el('div', { class: 'subhead' }, 'Body Composition — Scored Parameters'));
+      node.appendChild(tableRows(['Parameter', 'Value', 'Unit', 'Status'], rows));
+
+      if (scaled28 != null && band) {
+        b._bcaScore = { score: scaled28, max: S.BCA_MAX, tier: band.tier, label: band.label }; // for overview
+        node.appendChild(el('div', { class: 'composite', style: 'margin-top:12px' }, [
+          el('div', {}, [
+            el('div', { class: 'score-label' }, 'BCA Score'),
+            el('div', { class: 'score-num' }, [String(scaled28), el('small', {}, ' / ' + S.BCA_MAX)]),
+            el('div', { class: 'verdict-band', style: `background: var(--st-${band.tier}-bg); color: var(--st-${band.tier})` }, band.label),
+          ]),
+          el('div', {}, [
+            el('div', { class: 'subhead', style: 'margin-top:0' }, 'How this is scored' ),
+            el('p', { class: 'muted', style: 'font-size: 9pt; margin:4px 0' },
+              'Seven body-composition parameters are each scored 1–4 (Red 1 → Green 4) for a maximum of 28 points. This BCA score combines with the nutrition questionnaire toward the overall Nutrition score (out of 100).'),
+          ]),
+        ]));
       }
-      const rows = filtered.map(m => [
-        m.metric,
-        m.value || '—',
-        m.unit || '',
-        m.status || '—',
-        statusPill(m.tier),
-      ]);
-      node.appendChild(tableRows(['Metric', 'Value', 'Unit', 'Reported Status', 'TML Tier'], rows));
     }
     node.appendChild(pageFoot());
     return node;
@@ -519,20 +523,16 @@
   // ----- Nutrition -----
   function renderNutrition(c) {
     const n = c.nutrition || {};
-    const hasBodyComp = Array.isArray(n.body_comp) && n.body_comp.length > 0;
+    // Body composition now lives in the BCA section (scored /28); nutrition owns the
+    // symptom questionnaire + recommendations.
     const hasNutri    = n.nutrimeter_baseline && n.nutrimeter_baseline.total > 0;
     const hasRecs     = Array.isArray(n.recs) && n.recs.length > 0;
-    if (!hasBodyComp && !hasNutri && !hasRecs) return null;
+    if (!hasNutri && !hasRecs) return null;
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '02'), '  NUTRITIONAL STATUS']),
-      el('p', { class: 'intro' }, 'Nutritional parameters were assessed through a structured dietary-intake review, body-composition analysis and metabolic screening conducted by the TML nutritionist.'),
+      el('p', { class: 'intro' }, 'Nutritional status assessed through a structured dietary-symptom questionnaire and body-composition analysis conducted by the TML nutritionist.'),
     ]);
-    if (n.body_comp) {
-      node.appendChild(el('div', { class: 'subhead' }, 'Body Composition & Metabolic Markers'));
-      const rows = n.body_comp.map(r => [r.param, r.baseline, r.endpoint, r.delta, statusPill(r.tier)]);
-      node.appendChild(tableRows(['Parameter', 'Baseline', 'End-Point', 'Δ Change', 'Status'], rows));
-    }
     if (n.nutrimeter_baseline) {
       const b = n.nutrimeter_baseline;
       node.appendChild(el('div', { class: 'subhead' }, 'TML Nutri Meter — Performance & Wellness Check'));
@@ -742,27 +742,48 @@
   // ----- Entry -----
   function render(caseData, host, opts = {}) {
     host.innerHTML = '';
-    const include = opts.include || ['cover', 'background', 'summary', 'movement', 'nutrition', 'wellbeing', 'blood', 'integrated'];
-    if (include.includes('cover'))      host.appendChild(renderCover(caseData));
-    if (include.includes('background')) { const bg = renderBackground(caseData); if (bg) host.appendChild(bg); }
-    if (include.includes('summary'))    host.appendChild(renderSummary(caseData));
-    if (include.includes('movement'))   renderMovement(caseData).forEach(p => host.appendChild(p));
-    if (include.includes('bca') && caseData.bca) {
-      const bcaPage = renderBCA(caseData);
-      if (bcaPage) host.appendChild(bcaPage);
+    const include = opts.include || ['cover', 'background', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'wellbeing', 'integrated'];
+
+    // Section registry — each returns a node, an array of nodes, or null (skip).
+    const SECTIONS = {
+      cover:           () => renderCover(caseData),
+      overview:        () => renderOverview(caseData),
+      background:      () => renderBackground(caseData),
+      history:         () => renderBackground(caseData),          // alias until dedicated history lands
+      summary:         () => renderSummary(caseData),
+      movement:        () => renderMovement(caseData),
+      movement_images: () => renderMovementGallery(caseData),
+      bca:             () => caseData.bca ? renderBCA(caseData) : null,
+      blood:           () => caseData.blood ? renderBlood(caseData) : null,
+      nutrition:       () => renderNutrition(caseData),
+      wellbeing:       () => renderWellbeing(caseData),
+      prescriptions:   () => renderPrescriptions(caseData),
+      integrated:      () => renderIntegrated(caseData),
+    };
+
+    // Render strictly in the order given by `include`.
+    const seen = new Set();
+    for (const key of include) {
+      if (seen.has(key)) continue; seen.add(key);
+      const fn = SECTIONS[key];
+      if (!fn) continue;
+      let out;
+      try { out = fn(); } catch (e) { console.error('section', key, 'failed', e); continue; }
+      if (!out) continue;
+      (Array.isArray(out) ? out : [out]).forEach(p => { if (p) host.appendChild(p); });
     }
-    if (include.includes('movement_images')) {
-      const gallery = renderMovementGallery(caseData);
-      if (gallery) host.appendChild(gallery);
-    }
-    if (include.includes('nutrition')) { const nut = renderNutrition(caseData); if (nut) host.appendChild(nut); }
-    if (include.includes('wellbeing')) { const wb  = renderWellbeing(caseData); if (wb)  host.appendChild(wb); }
-    if (include.includes('blood') && caseData.blood)     { const blood = renderBlood(caseData); if (blood) host.appendChild(blood); }
-    if (include.includes('integrated')) {
-      const integ = renderIntegrated(caseData);
-      if (integ) host.appendChild(integ);
-    }
+
+    // Renumber section bars that carry a .num badge, in document order.
+    let n = 0;
+    host.querySelectorAll('.section-bar .num').forEach(badge => {
+      n++; badge.textContent = String(n).padStart(2, '0');
+    });
   }
+
+  // Placeholder renderers wired later (P2) — return null so includes referencing
+  // them are safely skipped until implemented.
+  function renderOverview() { return null; }
+  function renderPrescriptions() { return null; }
 
   window.TML_RENDER = { render, renderCover, renderBackground, renderSummary, renderMovement, renderMovementGallery, renderBCA, renderNutrition, renderWellbeing, renderBlood, renderIntegrated };
 })();

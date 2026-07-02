@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report Generator</title>
-<link rel="stylesheet" href="./assets/report.css?v=20260618" />
-<link rel="stylesheet" href="./assets/app.css?v=20260618" />
+<link rel="stylesheet" href="./assets/report.css?v=20260629" />
+<link rel="stylesheet" href="./assets/app.css?v=20260629" />
 <style>
   .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
   .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
@@ -148,13 +148,13 @@
       <thead><tr><th>Test</th><th>Peak / L</th><th>Avg / R</th><th>Asymmetry %</th><th>Status</th></tr></thead>
       <tbody></tbody>
     </table>
-    <div class="subhead" style="margin-top:18px">Dynamo (manual)</div>
+    <div class="subhead" style="margin-top:18px">Dynamo / Additional strength tests (manual)</div>
+    <p class="app-subtitle" style="margin:0 0 8px; font-size:12px;">The Dynamo PDF is image-only, so enter its values here. Use <em>+ Add test</em> for any test not listed.</p>
     <table class="parsed" id="dynamo_table">
       <thead><tr><th>Test</th><th>Left</th><th>Right</th><th>Unit</th><th>Asymmetry %</th><th>Status</th></tr></thead>
       <tbody></tbody>
     </table>
-    <div class="subhead" style="margin-top:18px">Composite questionnaire (12 items)</div>
-    <table class="parsed" id="qTable"></table>
+    <button class="btn ghost" id="addCustomTest" style="margin-top:10px; font-size:12px; padding:6px 12px;">+ Add test</button>
   </details>
 
   <!-- STEP 3b: Nutrition (manual) -->
@@ -218,7 +218,7 @@
   <div id="reportHost"></div>
 </div>
 
-<script src="./assets/auth.js?v=20260618"></script>
+<script src="./assets/auth.js?v=20260629"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
@@ -227,10 +227,10 @@
   window.pdfjsLib = pdfjs;
   window.dispatchEvent(new Event('pdfjs-ready'));
 </script>
-<script src="./assets/scoring.js?v=20260618"></script>
-<script src="./assets/render.js?v=20260618"></script>
-<script src="./assets/parsers.js?v=20260618"></script>
-<script src="./assets/sample-data.js?v=20260618"></script>
+<script src="./assets/scoring.js?v=20260629"></script>
+<script src="./assets/render.js?v=20260629"></script>
+<script src="./assets/parsers.js?v=20260629"></script>
+<script src="./assets/sample-data.js?v=20260629"></script>
 
 <script>
 // --- state -------------------------------------------------------------------
@@ -245,10 +245,12 @@ const state = {
 };
 
 const PKG_INCLUDES = {
-  pkg0: ['cover', 'movement', 'movement_images'],
+  // Order: cover → movement + its rep snaps (before BCA) → BCA → blood → nutrition → wellbeing → integrated.
+  // The fake 'summary' (IMPROVED cards) is removed; a real overview is added in a later pass.
+  pkg0: ['cover', 'background', 'movement', 'movement_images', 'integrated'],
   pkg1: ['cover', 'background', 'movement', 'movement_images', 'blood', 'integrated'],
-  pkg2: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'integrated'],
-  pkg3: ['cover', 'background', 'summary', 'movement', 'movement_images', 'blood', 'bca', 'nutrition', 'wellbeing', 'integrated'],
+  pkg2: ['cover', 'background', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'integrated'],
+  pkg3: ['cover', 'background', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'wellbeing', 'integrated'],
 };
 const PKG_NAME = {
   pkg0: 'HumanTrak Movement Screen',
@@ -362,32 +364,41 @@ function buildDynamoTable() {
     const k = tr.dataset.key;
     const left  = parseFloat(tr.querySelector('input[data-fld="left"]').value);
     const right = parseFloat(tr.querySelector('input[data-fld="right"]').value);
-    state.dynamo[k] = { left: isNaN(left) ? null : left, right: isNaN(right) ? null : right };
-    if (!isNaN(left) && !isNaN(right) && Math.max(left, right) > 0) {
-      const asym = Math.round(Math.abs(left - right) / Math.max(left, right) * 1000) / 10;
-      const tier = TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(asym);
-      tr.querySelector('.asym-cell').textContent = asym + '%';
-      tr.querySelector('.status-cell').innerHTML = `<span class="status ${tier}">${tier.toUpperCase()}</span>`;
-      state.dynamo[k].asymmetry = asym;
-      state.dynamo[k].tier = tier;
+    const rec = state.dynamo[k] || (state.dynamo[k] = {});
+    rec.left  = isNaN(left) ? null : left;
+    rec.right = isNaN(right) ? null : right;
+    // Custom rows carry an editable name + unit
+    const nameInp = tr.querySelector('input[data-fld="name"]');
+    const unitInp = tr.querySelector('input[data-fld="unit"]');
+    if (nameInp) rec.label = nameInp.value.trim();
+    if (unitInp) rec.unit  = unitInp.value.trim();
+    if (rec.left != null && rec.right != null && Math.max(rec.left, rec.right) > 0) {
+      const a = TML_SCORING.asymmetryFromLR(rec.left, rec.right);
+      const tier = TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(a);
+      tr.querySelector('.asym-cell').textContent = a + '%';
+      tr.querySelector('.status-cell').innerHTML = `<span class="status ${tier}">${(TML_SCORING.TIER_LABEL[tier]||tier.toUpperCase())}</span>`;
+      rec.asymmetry = a; rec.tier = tier;
     } else {
       tr.querySelector('.asym-cell').textContent = '—';
       tr.querySelector('.status-cell').innerHTML = '—';
+      rec.asymmetry = null; rec.tier = null;
     }
   });
 }
 
-function buildMovementQuestionnaire() {
-  const t = document.getElementById('qTable');
-  t.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>Always</th><th>More freq.</th><th>Rarely</th><th>Never</th></tr></thead>';
-  const tb = document.createElement('tbody');
-  TML_SCORING.MOVEMENT_QUESTIONNAIRE.forEach((q, i) => {
-    const tr = document.createElement('tr');
-    const r = (k) => `<td style="text-align:center"><input type="radio" name="q${i}" value="${k}"></td>`;
-    tr.innerHTML = `<td>${q.id}</td><td>${q.q}</td>${r('always')}${r('more_freq')}${r('rarely')}${r('never')}`;
-    tb.appendChild(tr);
-  });
-  t.appendChild(tb);
+let customTestSeq = 0;
+function addCustomTestRow() {
+  const tbody = document.querySelector('#dynamo_table tbody');
+  const k = 'custom_' + (++customTestSeq);
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr data-key="${k}">
+      <td><input data-fld="name" placeholder="Test name" style="width:150px"></td>
+      <td><input data-fld="left" type="number" step="0.1" style="width:70px"></td>
+      <td><input data-fld="right" type="number" step="0.1" style="width:70px"></td>
+      <td><input data-fld="unit" placeholder="kg/°" style="width:48px"></td>
+      <td class="asym-cell">—</td>
+      <td class="status-cell">—</td>
+    </tr>`);
 }
 
 function buildNutriMeter() {
@@ -414,8 +425,8 @@ function buildNutriMeter() {
 
 buildValdTable();
 buildDynamoTable();
-buildMovementQuestionnaire();
 buildNutriMeter();
+document.getElementById('addCustomTest').addEventListener('click', addCustomTestRow);
 
 // Show username, wire logout
 TML_AUTH.bindLogoutControls();
@@ -649,10 +660,12 @@ document.getElementById('generate').addEventListener('click', () => {
   const dynamoRows = Object.entries(state.dynamo)
     .filter(([, d]) => d.left != null || d.right != null)
     .map(([k, d]) => ({
-      label: TML_SCORING.DYNAMO_TESTS[k].label,
-      left: d.left, right: d.right, unit: TML_SCORING.DYNAMO_TESTS[k].unit,
+      label: d.label || (TML_SCORING.DYNAMO_TESTS[k] ? TML_SCORING.DYNAMO_TESTS[k].label : k),
+      left: d.left, right: d.right,
+      unit: d.unit || (TML_SCORING.DYNAMO_TESTS[k] ? TML_SCORING.DYNAMO_TESTS[k].unit : ''),
       asymmetry: d.asymmetry, tier: d.tier,
-    }));
+    }))
+    .filter(r => r.label);   // drop unnamed custom rows
   baseline.dynamo = dynamoRows;
 
   // Carry VALD test objects (including page thumbnails) for the gallery page
@@ -676,33 +689,33 @@ document.getElementById('generate').addEventListener('click', () => {
   }
   baseline.additional_tests = additional;
 
-  // Questionnaire
-  baseline.questionnaire = TML_SCORING.MOVEMENT_QUESTIONNAIRE.map((q, i) => {
-    const sel = document.querySelector(`input[name="q${i}"]:checked`);
-    return { id: q.id, answer: sel ? sel.value : null,
-      score: sel ? TML_SCORING.scoreMovementQuestion(sel.value, q.reverse) : null };
-  });
-
-  // Composite from all available test tiers + question scores
+  // Composite — data-driven from every scoreable movement test (no questionnaire).
+  const asym = window.TML_SCORING.asymmetryFromLR;
+  const asymScore = (a) => a == null ? null : TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(a);
   const testTiers = [
+    // Named ROM / single-value tests
     v.balance && TML_SCORING.MOVEMENT_TESTS.balanceAsymmetry.score(v.balance.asymmetry),
-    v.posture && TML_SCORING.MOVEMENT_TESTS.shoulderDrop.score(v.posture.peak),
-    v.neck_lat_flex && v.neck_lat_flex.left && v.neck_lat_flex.right && TML_SCORING.MOVEMENT_TESTS.neckLatFlex.score((v.neck_lat_flex.left + v.neck_lat_flex.right) / 2),
-    v.neck_rotation && v.neck_rotation.left && v.neck_rotation.right && TML_SCORING.MOVEMENT_TESTS.neckRotation.score((v.neck_rotation.left + v.neck_rotation.right) / 2),
-    v.trunk_flexion && TML_SCORING.MOVEMENT_TESTS.trunkFlexion.score(v.trunk_flexion.peak),
-    v.trunk_extension && TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(v.trunk_extension.peak),
-    v.trunk_lat_flex && TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(v.trunk_lat_flex.asymmetry),
-    v.trunk_rotation && TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(v.trunk_rotation.asymmetry),
-    v.sit_to_stand && TML_SCORING.MOVEMENT_TESTS.sitToStand.score(v.sit_to_stand.peak),
-    v.cmj && TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(v.cmj.peak),
-    v.squat && TML_SCORING.MOVEMENT_TESTS.squatAsymmetry.score(v.squat.asymmetry),
+    v.posture && v.posture.peak != null && TML_SCORING.MOVEMENT_TESTS.shoulderDrop.score(v.posture.peak),
+    v.trunk_flexion && v.trunk_flexion.peak != null && TML_SCORING.MOVEMENT_TESTS.trunkFlexion.score(v.trunk_flexion.peak),
+    v.trunk_extension && v.trunk_extension.peak != null && TML_SCORING.MOVEMENT_TESTS.trunkExtension.score(v.trunk_extension.peak),
+    v.sit_to_stand && v.sit_to_stand.peak != null && TML_SCORING.MOVEMENT_TESTS.sitToStand.score(v.sit_to_stand.peak),
+    v.cmj && v.cmj.peak != null && TML_SCORING.MOVEMENT_TESTS.countermovementJump.score(v.cmj.peak),
+    // Bilateral tests → asymmetry tier
+    v.neck_lat_flex && asymScore(v.neck_lat_flex.asymmetry ?? asym(v.neck_lat_flex.left, v.neck_lat_flex.right)),
+    v.neck_rotation && asymScore(v.neck_rotation.asymmetry ?? asym(v.neck_rotation.left, v.neck_rotation.right)),
+    v.trunk_lat_flex && asymScore(v.trunk_lat_flex.asymmetry ?? asym(v.trunk_lat_flex.left, v.trunk_lat_flex.right)),
+    v.trunk_rotation && asymScore(v.trunk_rotation.asymmetry ?? asym(v.trunk_rotation.left, v.trunk_rotation.right)),
+    v.squat && asymScore(v.squat.asymmetry),
+    // Every additional VALD test (shoulder / elbow / hip / dorsiflexion …)
+    ...additional.map(t => asymScore(t.asymmetry)),
+    // Dynamo rows
     ...dynamoRows.map(r => r.tier),
   ].filter(Boolean).map(t => TML_SCORING.TIER[t]).filter(x => x != null);
-  const qScores = baseline.questionnaire.map(q => q.score).filter(x => x != null);
-  const compRaw = TML_SCORING.movementComposite(testTiers, qScores);
+
+  const compRaw = TML_SCORING.movementComposite(testTiers, []);
   const band = compRaw ? TML_SCORING.movementBand(compRaw.scaled) : null;
   if (compRaw && band) {
-    baseline.composite = { sum: compRaw.sum, max: compRaw.max, scaled: compRaw.scaled, tier: band.tier, label: band.label };
+    baseline.composite = { sum: compRaw.sum, max: compRaw.max, scaled: compRaw.scaled, tier: band.tier, label: band.label, n: testTiers.length };
   }
 
   // Nutrition body comp

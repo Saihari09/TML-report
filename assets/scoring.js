@@ -253,6 +253,52 @@ const BODY_COMP = {
 };
 
 // -----------------------------------------------------------------------------
+// BCA scoring — 7 parameters × 4 points = 28 (contributes to the nutrition total of 100).
+// Team-tunable bands. Sex-aware where the norm differs (percentages).
+// Per clinical request: drop visceral fat & generic muscle mass; keep
+// BMI, Body Fat %, Skeletal Muscle Mass, Skeletal Muscle %, Protein %, Lean Mass %, Water %.
+// tierToPoints: green 4, yellow 3, orange 2, red 1.
+// -----------------------------------------------------------------------------
+const tierToPoints = (t) => ({ green: 4, yellow: 3, orange: 2, red: 1 }[t] || null);
+
+const BCA_PARAMS = [
+  { key: 'bmi', label: 'BMI', unit: 'kg/m²',
+    score: (v) => v == null ? null : (v >= 18.5 && v < 25) ? 'green' : (v >= 25 && v < 27) || (v >= 17 && v < 18.5) ? 'yellow' : (v >= 27 && v < 30) ? 'orange' : 'red' },
+  { key: 'body_fat_pct', label: 'Body Fat %', unit: '%',
+    score: (v, sex) => v == null ? null : (sex === 'female'
+      ? (v < 28 ? 'green' : v < 33 ? 'yellow' : v < 39 ? 'orange' : 'red')
+      : (v < 20 ? 'green' : v < 25 ? 'yellow' : v < 30 ? 'orange' : 'red')) },
+  { key: 'skeletal_muscle_mass', label: 'Skeletal Muscle Mass', unit: 'kg',
+    // Absolute SMM adequacy relative to weight is captured better by %; here we score by
+    // SMM% derived from context if available, else neutral 'yellow'. Handled in compute().
+    score: () => null },
+  { key: 'skeletal_muscle_pct', label: 'Skeletal Muscle %', unit: '%',
+    score: (v, sex) => v == null ? null : (sex === 'female'
+      ? (v >= 34 ? 'green' : v >= 30 ? 'yellow' : v >= 26 ? 'orange' : 'red')
+      : (v >= 40 ? 'green' : v >= 35 ? 'yellow' : v >= 30 ? 'orange' : 'red')) },
+  { key: 'protein_pct', label: 'Protein %', unit: '%',
+    score: (v) => v == null ? null : v >= 16 ? 'green' : v >= 14 ? 'yellow' : v >= 12 ? 'orange' : 'red' },
+  { key: 'lean_mass_pct', label: 'Lean Mass %', unit: '%',
+    score: (v, sex) => v == null ? null : (sex === 'female'
+      ? (v >= 72 ? 'green' : v >= 67 ? 'yellow' : v >= 62 ? 'orange' : 'red')
+      : (v >= 75 ? 'green' : v >= 70 ? 'yellow' : v >= 65 ? 'orange' : 'red')) },
+  { key: 'water_pct', label: 'Water %', unit: '%',
+    score: (v, sex) => v == null ? null : (sex === 'female'
+      ? (v >= 50 && v <= 60 ? 'green' : v >= 45 ? 'yellow' : v >= 40 ? 'orange' : 'red')
+      : (v >= 55 && v <= 65 ? 'green' : v >= 50 ? 'yellow' : v >= 45 ? 'orange' : 'red')) },
+];
+const BCA_MAX = BCA_PARAMS.length * 4;  // 28
+
+function bcaBand(score, max) {
+  if (score == null) return null;
+  const pct = score / max;
+  if (pct >= 0.85) return { tier: 'green',  label: 'Optimal' };
+  if (pct >= 0.65) return { tier: 'yellow', label: 'Adequate' };
+  if (pct >= 0.45) return { tier: 'orange', label: 'Suboptimal' };
+  return { tier: 'red', label: 'Needs Attention' };
+}
+
+// -----------------------------------------------------------------------------
 // Blood biomarker bands
 // Each biomarker has: label, unit, ref { lo, hi }, optional clinical bands.
 // score(value) returns 'green'/'yellow'/'orange'/'red' based on:
@@ -350,6 +396,7 @@ window.TML_SCORING = {
   NUTRI_METER_QUESTIONS, nutriMeterBand,
   pss10Band, psqiBand,
   BODY_COMP,
+  BCA_PARAMS, BCA_MAX, bcaBand, tierToPoints,
   BIOMARKERS, BIOMARKER_GROUPS, scoreBiomarker, bandFromRange,
   asymmetryFromLR,
 };
