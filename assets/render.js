@@ -24,6 +24,17 @@
     return el('span', { class: `status ${tier}` }, txt);
   };
 
+  // ----- Summary of Findings block (per section) -----
+  function summaryOfFindings(bullets, headline) {
+    const box = el('div', { class: 'findings' });
+    box.appendChild(el('div', { class: 'findings-title' }, 'Summary of Findings'));
+    if (headline) box.appendChild(el('div', { class: 'findings-headline' }, headline));
+    const ul = el('ul', {});
+    [].concat(bullets || []).filter(Boolean).forEach(b => ul.appendChild(el('li', {}, b)));
+    box.appendChild(ul);
+    return box;
+  }
+
   // ----- Page chrome -----
   function brandBand(label = 'Confidential · For addressee only') {
     return el('div', { class: 'brand-band' }, [
@@ -350,32 +361,24 @@
         ]),
       ]));
     }
+
+    // Summary of Findings — derived from the status pills already rendered in this page.
+    const concerns = [];
+    node.querySelectorAll('table.r tbody tr').forEach(tr => {
+      const pill = tr.querySelector('.status.red, .status.orange');
+      if (!pill) return;
+      const name = tr.querySelector('td') ? tr.querySelector('td').textContent.trim() : '';
+      if (name) concerns.push(`${name} — ${pill.textContent.trim()}`);
+    });
+    const headline = b.composite ? `Movement score ${b.composite.scaled}/100 — ${b.composite.label}.` : null;
+    node.appendChild(summaryOfFindings(
+      concerns.length ? concerns : ['No significant movement restrictions or asymmetries detected.'],
+      headline
+    ));
+
     node.appendChild(pageFoot());
-
-    // Endpoint comparison + recommendations on a second page (omit if no endpoint data)
-    if (!m.endpoint && !(m.recs && m.recs.length)) return [node];
-
-    const node2 = el('div', { class: 'page' }, [brandBand()]);
-    if (m.endpoint) {
-      node2.appendChild(el('div', { class: 'section-bar' }, 'MOVEMENT — BASELINE vs END-POINT COMPARISON'));
-      node2.appendChild(el('p', { class: 'intro' }, 'End-point measurements taken after the programme cycle.'));
-      const rows = Object.entries(m.endpoint).map(([k, v]) => [
-        prettyKey(k), v.baseline, v.endpoint, v.delta, statusPill(v.tier),
-      ]);
-      node2.appendChild(tableRowsRaw(
-        ['Parameter', 'Baseline', 'End-Point', 'Δ Change', 'Status'],
-        rows.map(r => r.map((cell, i) => i === 4 ? el('td', {}, cell) : cell))
-      ));
-    }
-    if (m.recs && m.recs.length) {
-      node2.appendChild(el('div', { class: 'section-bar' }, 'RECOMMENDATIONS — MOVEMENT'));
-      const ul = el('ol', { class: 'recs' });
-      m.recs.forEach(r => ul.appendChild(el('li', {}, r)));
-      node2.appendChild(ul);
-    }
-    node2.appendChild(pageFoot());
-
-    return [node, node2];
+    // Recommendations are consolidated into the Prescriptions page (renderPrescriptions).
+    return [node];
   }
 
   // ----- Movement gallery: rep photos extracted from the VALD HumanTrak PDF -----
@@ -461,59 +464,37 @@
     }
     if (b.metrics && b.metrics.length) {
       const S = window.TML_SCORING;
-      const sex = (c.patient && c.patient.sex || '').toLowerCase();
-      const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const byName = {};
-      b.metrics.forEach(m => { byName[norm(m.metric)] = m.value_num; });
-      const pick = (...keys) => { for (const k of keys) { const v = byName[norm(k)]; if (v != null && !isNaN(v)) return v; } return null; };
+      const sex = (c.patient && c.patient.sex) || '';
+      const bca = S.computeBCA(b.metrics, sex);
+      if (bca) {
+        node.appendChild(el('div', { class: 'subhead' }, 'Body Composition — Scored Parameters'));
+        node.appendChild(tableRows(['Parameter', 'Value', 'Unit', 'Status'],
+          bca.params.map(p => [p.label, p.value, p.unit, statusPill(p.tier)])));
 
-      // Derive the seven scored parameters.
-      const weight   = pick('weight');
-      const leanMass = pick('lean mass');
-      const smm      = pick('skeletal muscle mass');
-      const proteinPct = (leanMass != null && weight) ? +(((leanMass * 0.20) / weight) * 100).toFixed(1) : null;
-      const values = {
-        bmi:                  pick('body mass index bmi', 'bmi'),
-        body_fat_pct:         pick('fat percentage', 'body fat percentage'),
-        skeletal_muscle_mass: smm,
-        skeletal_muscle_pct:  pick('skeletal muscle percentage'),
-        protein_pct:          proteinPct,
-        lean_mass_pct:        pick('lean mass percentage'),
-        water_pct:            pick('water percentage', 'total body water percentage'),
-      };
-      // Score each; SMM(kg) scored via its %-of-weight proxy against the muscle-% band.
-      const smmPct = (smm != null && weight) ? +((smm / weight) * 100).toFixed(1) : null;
-      const smPctScorer = S.BCA_PARAMS.find(p => p.key === 'skeletal_muscle_pct').score;
+        // Summary of Findings (item 7)
+        const concerns = bca.params.filter(p => p.tier === 'red' || p.tier === 'orange');
+        node.appendChild(summaryOfFindings(
+          concerns.length
+            ? concerns.map(p => `${p.label}: ${p.value}${p.unit && p.unit !== 'kg/m²' ? '' : ''} — ${(S.TIER_LABEL[p.tier]||p.tier)}`)
+            : ['All scored body-composition parameters within acceptable range.'],
+          bca.band ? `BCA composite ${bca.score}/${bca.max} — ${bca.band.label}.` : null
+        ));
 
-      let points = 0, counted = 0;
-      const rows = S.BCA_PARAMS.map(p => {
-        const v = values[p.key];
-        let tier = p.key === 'skeletal_muscle_mass' ? smPctScorer(smmPct, sex) : p.score(v, sex);
-        if (tier) { points += S.tierToPoints(tier); counted++; }
-        const shownVal = v == null ? '—' : (p.key === 'skeletal_muscle_mass' && smmPct != null ? `${v} (${smmPct}%)` : String(v));
-        return [p.label, shownVal, p.unit, statusPill(tier)];
-      });
-
-      const scaled28 = counted ? Math.round((points / (counted * 4)) * S.BCA_MAX) : null;
-      const band = S.bcaBand(scaled28, S.BCA_MAX);
-
-      node.appendChild(el('div', { class: 'subhead' }, 'Body Composition — Scored Parameters'));
-      node.appendChild(tableRows(['Parameter', 'Value', 'Unit', 'Status'], rows));
-
-      if (scaled28 != null && band) {
-        b._bcaScore = { score: scaled28, max: S.BCA_MAX, tier: band.tier, label: band.label }; // for overview
-        node.appendChild(el('div', { class: 'composite', style: 'margin-top:12px' }, [
-          el('div', {}, [
-            el('div', { class: 'score-label' }, 'BCA Score'),
-            el('div', { class: 'score-num' }, [String(scaled28), el('small', {}, ' / ' + S.BCA_MAX)]),
-            el('div', { class: 'verdict-band', style: `background: var(--st-${band.tier}-bg); color: var(--st-${band.tier})` }, band.label),
-          ]),
-          el('div', {}, [
-            el('div', { class: 'subhead', style: 'margin-top:0' }, 'How this is scored' ),
-            el('p', { class: 'muted', style: 'font-size: 9pt; margin:4px 0' },
-              'Seven body-composition parameters are each scored 1–4 (Red 1 → Green 4) for a maximum of 28 points. This BCA score combines with the nutrition questionnaire toward the overall Nutrition score (out of 100).'),
-          ]),
-        ]));
+        if (bca.score != null && bca.band) {
+          b._bcaScore = { score: bca.score, max: bca.max, tier: bca.band.tier, label: bca.band.label };
+          node.appendChild(el('div', { class: 'composite', style: 'margin-top:12px' }, [
+            el('div', {}, [
+              el('div', { class: 'score-label' }, 'BCA Score'),
+              el('div', { class: 'score-num' }, [String(bca.score), el('small', {}, ' / ' + bca.max)]),
+              el('div', { class: 'verdict-band', style: `background: var(--st-${bca.band.tier}-bg); color: var(--st-${bca.band.tier})` }, bca.band.label),
+            ]),
+            el('div', {}, [
+              el('div', { class: 'subhead', style: 'margin-top:0' }, 'How this is scored'),
+              el('p', { class: 'muted', style: 'font-size: 9pt; margin:4px 0' },
+                'Seven body-composition parameters are each scored 1–4 (Red 1 → Green 4) for a maximum of 28 points. This BCA score combines with the nutrition questionnaire toward the overall Nutrition score (out of 100).'),
+            ]),
+          ]));
+        }
       }
     }
     node.appendChild(pageFoot());
@@ -526,8 +507,7 @@
     // Body composition now lives in the BCA section (scored /28); nutrition owns the
     // symptom questionnaire + recommendations.
     const hasNutri    = n.nutrimeter_baseline && n.nutrimeter_baseline.total > 0;
-    const hasRecs     = Array.isArray(n.recs) && n.recs.length > 0;
-    if (!hasNutri && !hasRecs) return null;
+    if (!hasNutri) return null;   // recommendations live on the Prescriptions page
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '02'), '  NUTRITIONAL STATUS']),
@@ -570,12 +550,6 @@
         ]),
       ]));
     }
-    if (n.recs) {
-      node.appendChild(el('div', { class: 'section-bar' }, 'RECOMMENDATIONS — NUTRITION'));
-      const ul = el('ol', { class: 'recs' });
-      n.recs.forEach(r => ul.appendChild(el('li', {}, r)));
-      node.appendChild(ul);
-    }
     node.appendChild(pageFoot());
     return node;
   }
@@ -584,16 +558,15 @@
   function renderWellbeing(c) {
     const w = c.wellbeing || {};
     const hasRows = Array.isArray(w.rows) && w.rows.length > 0;
-    const hasRecs = Array.isArray(w.recs) && w.recs.length > 0;
-    if (!hasRows && !hasRecs) return null;
+    if (!hasRows) return null;   // recommendations live on the Prescriptions page
     const node = el('div', { class: 'page' }, [
       brandBand(),
       el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '03'), '  MENTAL WELLBEING']),
       el('p', { class: 'intro' }, "Mental wellbeing was screened using two validated tools: the Perceived Stress Scale (PSS-10) for stress-load and the Pittsburgh Sleep Quality Index (PSQI) for sleep architecture. All data is handled in accordance with TML's data privacy policy."),
     ]);
     if (w.rows) {
-      const rows = w.rows.map(r => [r.param, r.baseline, r.endpoint, r.delta, statusPill(r.tier)]);
-      node.appendChild(tableRows(['Parameter', 'Baseline', 'End-Point', 'Δ Change', 'Status'], rows));
+      const rows = w.rows.map(r => [r.param, r.baseline, statusPill(r.tier)]);
+      node.appendChild(tableRows(['Parameter', 'Score', 'Status'], rows));
     }
     node.appendChild(el('div', { class: 'two-col' }, [
       el('div', {}, [
@@ -614,12 +587,6 @@
         w.psqi_note ? el('p', { style: 'font-size:9pt; margin: 6px 0 0 0;' }, w.psqi_note) : null,
       ]),
     ]));
-    if (w.recs) {
-      node.appendChild(el('div', { class: 'section-bar' }, 'RECOMMENDATIONS — MENTAL WELLBEING'));
-      const ul = el('ol', { class: 'recs' });
-      w.recs.forEach(r => ul.appendChild(el('li', {}, r)));
-      node.appendChild(ul);
-    }
     node.appendChild(pageFoot());
     return node;
   }
@@ -664,11 +631,14 @@
       node.appendChild(el('div', { class: 'subhead' }, 'Pending'));
       node.appendChild(el('p', { class: 'muted', style: 'font-size: 9.5pt' }, b.pending.join(', ')));
     }
-    if (b.recs && b.recs.length) {
-      node.appendChild(el('div', { class: 'section-bar' }, 'RECOMMENDATIONS — BIOMARKERS'));
-      const ul = el('ol', { class: 'recs' });
-      b.recs.forEach(r => ul.appendChild(el('li', {}, r)));
-      node.appendChild(ul);
+    // Summary of Findings — flagged (non-green) biomarkers.
+    if (b.values && Object.keys(b.values).length) {
+      const bf = window.TML_SCORING.bloodFlags(b.values);
+      node.appendChild(summaryOfFindings(
+        bf.count ? bf.flags.map(f => `${f.label} — ${window.TML_SCORING.TIER_LABEL[f.tier] || f.tier}`)
+                 : ['All biomarkers within their reference ranges.'],
+        `${bf.count} of ${Object.keys(b.values).length} markers flagged for review.`
+      ));
     }
     node.appendChild(pageFoot());
     return node;
@@ -749,7 +719,7 @@
       cover:           () => renderCover(caseData),
       overview:        () => renderOverview(caseData),
       background:      () => renderBackground(caseData),
-      history:         () => renderBackground(caseData),          // alias until dedicated history lands
+      history:         () => renderHistory(caseData),
       summary:         () => renderSummary(caseData),
       movement:        () => renderMovement(caseData),
       movement_images: () => renderMovementGallery(caseData),
@@ -780,10 +750,159 @@
     });
   }
 
-  // Placeholder renderers wired later (P2) — return null so includes referencing
-  // them are safely skipped until implemented.
-  function renderOverview() { return null; }
-  function renderPrescriptions() { return null; }
+  // ----- Overview: overall scoring + icon status cards + interpretation (pages 1–2) -----
+  function iconCard(icon, label, statusText, tier) {
+    return el('div', { class: 'ov-card' }, [
+      el('div', { class: 'ov-ico' }, icon),
+      el('div', { class: 'ov-label' }, label),
+      el('div', { class: `ov-status ${tier || 'none'}` }, statusText),
+    ]);
+  }
+  function renderOverview(c) {
+    const S = window.TML_SCORING;
+    const cards = [];
+    const scoreCards = [];
+
+    // Movement
+    const comp = c.movement && c.movement.baseline && c.movement.baseline.composite;
+    if (comp) {
+      scoreCards.push({ label: 'Movement Health', value: `${comp.scaled}/100`, sub: comp.label, tier: comp.tier });
+      cards.push(iconCard('🏃', 'Movement', comp.label, comp.tier));
+    }
+    // BCA / body composition
+    let bca = null;
+    if (c.bca && c.bca.metrics) bca = S.computeBCA(c.bca.metrics, (c.patient && c.patient.sex) || '');
+    if (bca && bca.score != null) {
+      scoreCards.push({ label: 'Body Composition', value: `${bca.score}/${bca.max}`, sub: bca.band.label, tier: bca.band.tier });
+      cards.push(iconCard('⚖️', 'Body Composition', bca.band.label, bca.band.tier));
+    }
+    // Blood
+    if (c.blood && c.blood.values && Object.keys(c.blood.values).length) {
+      const bf = S.bloodFlags(c.blood.values);
+      const tier = bf.count === 0 ? 'green' : bf.count <= 2 ? 'yellow' : bf.count <= 4 ? 'orange' : 'red';
+      scoreCards.push({ label: 'Blood Panel', value: `${bf.count} flag${bf.count === 1 ? '' : 's'}`, sub: bf.count ? 'Review' : 'Normal', tier });
+      cards.push(iconCard('🩸', 'Blood Panel', bf.count ? `${bf.count} Flags` : 'Normal', tier));
+    }
+    // Mental
+    if (c.wellbeing && Array.isArray(c.wellbeing.rows) && c.wellbeing.rows.length) {
+      const worst = c.wellbeing.rows.reduce((w, r) => rankTier(r.tier) > rankTier(w) ? r.tier : w, 'green');
+      cards.push(iconCard('🧠', 'Mental Wellbeing', S.TIER_LABEL[worst] || 'Assessed', worst));
+    } else if ((c._pkg || '').match(/pkg3/)) {
+      cards.push(iconCard('🧠', 'Mental Wellbeing', 'Not Tested', 'none'));
+    }
+
+    // Highlight the single worst movement finding as its own card (like the reference design)
+    const worstMove = c.movement && c.movement.baseline && worstMovementFinding(c.movement.baseline);
+    if (worstMove) cards.push(iconCard('⚠️', worstMove.label, worstMove.status, worstMove.tier));
+
+    if (!cards.length && !scoreCards.length) return null;
+
+    const node = el('div', { class: 'page' }, [
+      brandBand(),
+      el('h1', { class: 'ov-title' }, 'Holistic Assessment — Overview'),
+      el('p', { class: 'ov-sub' }, 'A single-page snapshot of every domain assessed in this report. Each score is explained in its own section on the following pages.'),
+    ]);
+
+    // Big score strip
+    if (scoreCards.length) {
+      const strip = el('div', { class: 'ov-scores' });
+      scoreCards.forEach(s => strip.appendChild(el('div', { class: `ov-score ${s.tier}` }, [
+        el('div', { class: 'ov-score-label' }, s.label),
+        el('div', { class: 'ov-score-val' }, s.value),
+        el('div', { class: 'ov-score-sub' }, s.sub || ''),
+      ])));
+      node.appendChild(strip);
+    }
+
+    // Icon cards grid
+    const grid = el('div', { class: 'ov-grid' });
+    cards.forEach(cd => grid.appendChild(cd));
+    node.appendChild(grid);
+
+    // Narrative
+    node.appendChild(el('div', { class: 'subhead' }, 'How to Read This Report'));
+    node.appendChild(el('p', { class: 'intro' },
+      'Every measured parameter is graded on a four-tier scale. The colour and label indicate how far the value sits from the healthy reference range and what action it warrants.'));
+    node.appendChild(statusKeyGrid());
+
+    node.appendChild(pageFoot());
+    return node;
+  }
+  function rankTier(t) { return { red: 4, orange: 3, yellow: 2, green: 1 }[t] || 0; }
+  function worstMovementFinding(b) {
+    // Prefer the highest bilateral asymmetry among neck/trunk.
+    const cands = [];
+    const push = (label, l, r) => {
+      const a = window.TML_SCORING.asymmetryFromLR(l, r);
+      if (a != null) cands.push({ label, a, tier: window.TML_SCORING.MOVEMENT_TESTS.asymmetryGeneric.score(a), status: a + '% asym' });
+    };
+    if (b.neck) { push('Neck Lateral Flexion', b.neck.lat_flex_left, b.neck.lat_flex_right); push('Neck Rotation', b.neck.rotation_left, b.neck.rotation_right); }
+    if (b.trunk) { push('Trunk Lateral Flexion', b.trunk.lat_flex_left, b.trunk.lat_flex_right); push('Trunk Rotation', b.trunk.rotation_left, b.trunk.rotation_right); }
+    cands.sort((x, y) => y.a - x.a);
+    return cands[0] && (cands[0].tier === 'red' || cands[0].tier === 'orange') ? cands[0] : null;
+  }
+  function statusKeyGrid() {
+    const key = el('div', { class: 'status-key' });
+    [
+      ['green',  'GREEN — Normal',        'Within reference range. Maintain current habits.'],
+      ['yellow', 'YELLOW — Mild Variance','Borderline. Monitor and add targeted support.'],
+      ['orange', 'ORANGE — Significant',  'Clear deviation. Structured intervention recommended.'],
+      ['red',    'RED — Urgent',          'Marked deficit or asymmetry. Mandatory clinical action.'],
+    ].forEach(([t, lbl, desc]) => key.appendChild(el('div', { class: 'row' }, [
+      el('span', { class: `swatch ${t}` }),
+      el('div', {}, [el('div', { class: 'label' }, lbl), el('div', { class: 'desc' }, desc)]),
+    ])));
+    return key;
+  }
+
+  // ----- Patient history & presenting complaints -----
+  function renderHistory(c) {
+    const h = c.history || {};
+    const rows = [
+      ['Presenting Complaints', h.complaints],
+      ['History of Presenting Illness', h.hpi],
+      ['Past Medical / Surgical History', h.pmh],
+      ['Current Medications / Supplements', h.medications],
+      ['Lifestyle & Occupation', h.lifestyle],
+      ['Patient Goals', h.goals],
+    ].filter(([, v]) => v && String(v).trim());
+    if (!rows.length) return null;
+    const tbody = el('tbody');
+    rows.forEach(([k, v]) => tbody.appendChild(el('tr', {}, [
+      el('td', { style: 'width: 32%; font-weight: 600; color: var(--tml-burgundy);' }, k),
+      el('td', {}, v),
+    ])));
+    return el('div', { class: 'page' }, [
+      brandBand(),
+      el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '00'), '  PATIENT HISTORY & PRESENTING COMPLAINTS']),
+      el('table', { class: 'r' }, tbody),
+      pageFoot(),
+    ]);
+  }
+
+  // ----- Prescriptions (Movement / Nutrition / Mental) + next steps -----
+  function renderPrescriptions(c) {
+    const blocks = [
+      ['Movement Prescription',        (c.movement && c.movement.recs) || []],
+      ['Nutrition Prescription',       (c.nutrition && c.nutrition.recs) || []],
+      ['Mental Wellbeing Prescription',(c.wellbeing && c.wellbeing.recs) || []],
+      ['Biomarker Follow-up',          (c.blood && c.blood.recs) || []],
+    ].filter(([, arr]) => arr && arr.length);
+    if (!blocks.length) return null;
+    const node = el('div', { class: 'page' }, [
+      brandBand(),
+      el('div', { class: 'section-bar' }, 'PRESCRIPTIONS & NEXT STEPS'),
+      el('p', { class: 'intro' }, 'Domain-specific recommendations from the TML clinical team. Follow alongside the findings in each section above.'),
+    ]);
+    blocks.forEach(([title, arr]) => {
+      node.appendChild(el('div', { class: 'rx-block' }, [
+        el('div', { class: 'rx-title' }, title),
+        el('ol', { class: 'recs' }, arr.map(r => el('li', {}, r))),
+      ]));
+    });
+    node.appendChild(pageFoot());
+    return node;
+  }
 
   window.TML_RENDER = { render, renderCover, renderBackground, renderSummary, renderMovement, renderMovementGallery, renderBCA, renderNutrition, renderWellbeing, renderBlood, renderIntegrated };
 })();

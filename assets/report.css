@@ -284,6 +284,63 @@ table.r td.center, table.r th.center { text-align: center; }
 .recs { padding-left: 18px; margin: 6px 0 0 0; }
 .recs li { margin-bottom: 6px; font-size: 9.5pt; }
 
+/* ===== Overview page (icon cards + overall scores) ===== */
+.ov-title {
+  font-size: 22pt; font-weight: 700; color: var(--tml-burgundy);
+  letter-spacing: 0.02em; margin: 8px 0 2px; text-align: center;
+}
+.ov-sub { text-align: center; color: var(--tml-muted); font-size: 10pt; margin: 0 0 18px; }
+.ov-scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.ov-score {
+  border: 1px solid var(--tml-line); border-radius: 6px; padding: 14px 16px;
+  background: #fff; text-align: center; border-top: 4px solid var(--tml-burgundy);
+}
+.ov-score.green  { border-top-color: var(--st-green); }
+.ov-score.yellow { border-top-color: var(--st-yellow); }
+.ov-score.orange { border-top-color: var(--st-orange); }
+.ov-score.red    { border-top-color: var(--st-red); }
+.ov-score-label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: var(--tml-muted); }
+.ov-score-val   { font-size: 26pt; font-weight: 700; color: var(--tml-burgundy); line-height: 1.1; margin: 4px 0 2px; }
+.ov-score-sub   { font-size: 9pt; font-weight: 600; }
+.ov-score.green .ov-score-sub  { color: var(--st-green); }
+.ov-score.yellow .ov-score-sub { color: var(--st-yellow); }
+.ov-score.orange .ov-score-sub { color: var(--st-orange); }
+.ov-score.red .ov-score-sub    { color: var(--st-red); }
+
+.ov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.ov-card {
+  border: 1px solid var(--tml-line); border-radius: 6px; padding: 16px 12px;
+  background: var(--tml-cream); text-align: center;
+}
+.ov-ico { font-size: 22pt; line-height: 1; margin-bottom: 8px; }
+.ov-label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tml-muted); margin-bottom: 6px; }
+.ov-status { font-size: 12pt; font-weight: 700; }
+.ov-status.green  { color: var(--st-green); }
+.ov-status.yellow { color: var(--st-yellow); }
+.ov-status.orange { color: var(--st-orange); }
+.ov-status.red    { color: var(--st-red); }
+.ov-status.none   { color: var(--tml-muted); }
+
+/* ===== Summary of Findings ===== */
+.findings {
+  border: 1px solid var(--tml-line); border-left: 4px solid var(--tml-gold);
+  background: #fff; border-radius: 4px; padding: 12px 14px; margin: 12px 0;
+}
+.findings-title {
+  font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--tml-burgundy); font-weight: 700; margin-bottom: 4px;
+}
+.findings-headline { font-size: 10pt; font-weight: 600; color: var(--tml-ink); margin-bottom: 6px; }
+.findings ul { margin: 0; padding-left: 16px; font-size: 9.5pt; }
+.findings li { margin-bottom: 3px; }
+
+/* ===== Prescriptions ===== */
+.rx-block { margin: 10px 0 4px; break-inside: avoid; }
+.rx-title {
+  font-size: 10.5pt; font-weight: 700; color: var(--tml-burgundy);
+  border-bottom: 2px solid var(--tml-gold); padding-bottom: 4px; margin-bottom: 8px;
+}
+
 /* HumanTrak rep-snapshot gallery */
 .snap-grid {
   display: grid;
@@ -370,4 +427,9 @@ table.r td.center, table.r th.center { text-align: center; }
   body.app { background: #fff; }
   body.app .app-container { max-width: none; padding: 0; }
   body.app #reportHost { display: block; }
+
+  /* Keep cards/blocks from splitting across printed pages */
+  .ov-card, .ov-score, .findings, .rx-block, .snap-card, .composite,
+  table.r tr { break-inside: avoid; page-break-inside: avoid; }
+  .section-bar, .subhead, .ov-title { break-after: avoid; page-break-after: avoid; }
 }

@@ -298,6 +298,55 @@ function bcaBand(score, max) {
   return { tier: 'red', label: 'Needs Attention' };
 }
 
+// Compute the scored BCA parameters + composite /28 from parsed FITTR metrics.
+// metrics: array of { metric, value_num }. Returns { params, score, max, band }.
+function computeBCA(metrics, sex) {
+  if (!Array.isArray(metrics) || !metrics.length) return null;
+  sex = (sex || '').toLowerCase();
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const byName = {};
+  metrics.forEach(m => { byName[norm(m.metric)] = m.value_num; });
+  const pick = (...keys) => { for (const k of keys) { const v = byName[norm(k)]; if (v != null && !isNaN(v)) return v; } return null; };
+
+  const weight   = pick('weight');
+  const leanMass = pick('lean mass');
+  const smm      = pick('skeletal muscle mass');
+  const proteinPct = (leanMass != null && weight) ? +(((leanMass * 0.20) / weight) * 100).toFixed(1) : null;
+  const smmPct = (smm != null && weight) ? +((smm / weight) * 100).toFixed(1) : null;
+  const values = {
+    bmi:                  pick('body mass index bmi', 'bmi'),
+    body_fat_pct:         pick('fat percentage', 'body fat percentage'),
+    skeletal_muscle_mass: smm,
+    skeletal_muscle_pct:  pick('skeletal muscle percentage'),
+    protein_pct:          proteinPct,
+    lean_mass_pct:        pick('lean mass percentage'),
+    water_pct:            pick('water percentage', 'total body water percentage'),
+  };
+  const smPctScorer = BCA_PARAMS.find(p => p.key === 'skeletal_muscle_pct').score;
+
+  let points = 0, counted = 0;
+  const params = BCA_PARAMS.map(p => {
+    const v = values[p.key];
+    const tier = p.key === 'skeletal_muscle_mass' ? smPctScorer(smmPct, sex) : p.score(v, sex);
+    if (tier) { points += tierToPoints(tier); counted++; }
+    const shownVal = v == null ? '—' : (p.key === 'skeletal_muscle_mass' && smmPct != null ? `${v} (${smmPct}%)` : String(v));
+    return { key: p.key, label: p.label, value: shownVal, unit: p.unit, tier };
+  });
+  const score = counted ? Math.round((points / (counted * 4)) * BCA_MAX) : null;
+  return { params, score, max: BCA_MAX, band: bcaBand(score, BCA_MAX) };
+}
+
+// Blood: count out-of-range markers ("flags") from parsed biomarker values.
+function bloodFlags(values) {
+  if (!values) return { count: 0, flags: [] };
+  const flags = [];
+  for (const [k, v] of Object.entries(values)) {
+    const tier = scoreBiomarker(k, v);
+    if (tier && tier !== 'green') flags.push({ key: k, label: (BIOMARKERS[k] && BIOMARKERS[k].label) || k, tier });
+  }
+  return { count: flags.length, flags };
+}
+
 // -----------------------------------------------------------------------------
 // Blood biomarker bands
 // Each biomarker has: label, unit, ref { lo, hi }, optional clinical bands.
@@ -396,7 +445,7 @@ window.TML_SCORING = {
   NUTRI_METER_QUESTIONS, nutriMeterBand,
   pss10Band, psqiBand,
   BODY_COMP,
-  BCA_PARAMS, BCA_MAX, bcaBand, tierToPoints,
+  BCA_PARAMS, BCA_MAX, bcaBand, tierToPoints, computeBCA, bloodFlags,
   BIOMARKERS, BIOMARKER_GROUPS, scoreBiomarker, bandFromRange,
   asymmetryFromLR,
 };

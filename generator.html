@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report Generator</title>
-<link rel="stylesheet" href="./assets/report.css?v=20260629" />
-<link rel="stylesheet" href="./assets/app.css?v=20260629" />
+<link rel="stylesheet" href="./assets/report.css?v=20260629b" />
+<link rel="stylesheet" href="./assets/app.css?v=20260629b" />
 <style>
   .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
   .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
@@ -123,6 +123,25 @@
     </div>
   </div>
 
+  <!-- STEP 1b: history -->
+  <details class="collapsible" id="sec_history">
+    <summary>1b · Patient history &amp; complaints <span class="badge muted">optional</span></summary>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-top:12px;">
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">Presenting complaints</label>
+        <textarea id="h_complaints" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">History of presenting illness</label>
+        <textarea id="h_hpi" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">Past medical / surgical history</label>
+        <textarea id="h_pmh" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">Current medications / supplements</label>
+        <textarea id="h_meds" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">Lifestyle &amp; occupation</label>
+        <textarea id="h_lifestyle" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+      <div><label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tml-muted)">Patient goals</label>
+        <textarea id="h_goals" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--tml-line);border-radius:3px;font-family:inherit;font-size:13px;"></textarea></div>
+    </div>
+  </details>
+
   <!-- STEP 2: drop files -->
   <div class="panel">
     <h2>2. Drop source PDFs</h2>
@@ -218,7 +237,7 @@
   <div id="reportHost"></div>
 </div>
 
-<script src="./assets/auth.js?v=20260629"></script>
+<script src="./assets/auth.js?v=20260629b"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
@@ -227,10 +246,10 @@
   window.pdfjsLib = pdfjs;
   window.dispatchEvent(new Event('pdfjs-ready'));
 </script>
-<script src="./assets/scoring.js?v=20260629"></script>
-<script src="./assets/render.js?v=20260629"></script>
-<script src="./assets/parsers.js?v=20260629"></script>
-<script src="./assets/sample-data.js?v=20260629"></script>
+<script src="./assets/scoring.js?v=20260629b"></script>
+<script src="./assets/render.js?v=20260629b"></script>
+<script src="./assets/parsers.js?v=20260629b"></script>
+<script src="./assets/sample-data.js?v=20260629b"></script>
 
 <script>
 // --- state -------------------------------------------------------------------
@@ -245,12 +264,11 @@ const state = {
 };
 
 const PKG_INCLUDES = {
-  // Order: cover → movement + its rep snaps (before BCA) → BCA → blood → nutrition → wellbeing → integrated.
-  // The fake 'summary' (IMPROVED cards) is removed; a real overview is added in a later pass.
-  pkg0: ['cover', 'background', 'movement', 'movement_images', 'integrated'],
-  pkg1: ['cover', 'background', 'movement', 'movement_images', 'blood', 'integrated'],
-  pkg2: ['cover', 'background', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'integrated'],
-  pkg3: ['cover', 'background', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'wellbeing', 'integrated'],
+  // cover → overview → history → movement (+rep snaps before BCA) → BCA → blood → nutrition → wellbeing → prescriptions → integrated.
+  pkg0: ['cover', 'overview', 'history', 'movement', 'movement_images', 'prescriptions', 'integrated'],
+  pkg1: ['cover', 'overview', 'history', 'movement', 'movement_images', 'blood', 'prescriptions', 'integrated'],
+  pkg2: ['cover', 'overview', 'history', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'prescriptions', 'integrated'],
+  pkg3: ['cover', 'overview', 'history', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'wellbeing', 'prescriptions', 'integrated'],
 };
 const PKG_NAME = {
   pkg0: 'HumanTrak Movement Screen',
@@ -761,6 +779,15 @@ document.getElementById('generate').addEventListener('click', () => {
       referring_physician: document.getElementById('p_ref').value,
       programme: PKG_NAME[state.pkg],
       authored_by: TML_AUTH.getSession()?.user || '',
+    },
+    _pkg: state.pkg,
+    history: {
+      complaints:  document.getElementById('h_complaints').value.trim(),
+      hpi:         document.getElementById('h_hpi').value.trim(),
+      pmh:         document.getElementById('h_pmh').value.trim(),
+      medications: document.getElementById('h_meds').value.trim(),
+      lifestyle:   document.getElementById('h_lifestyle').value.trim(),
+      goals:       document.getElementById('h_goals').value.trim(),
     },
     movement: { baseline, recs: recs_movement },
     bca: state.bca ? { section_num: '02', ...state.bca } : null,
