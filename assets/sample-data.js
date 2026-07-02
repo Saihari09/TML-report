@@ -1,3 +1,117 @@
+// Full-shape reference case rendered by template.html — mirrors exactly what the
+// generator produces, so the template is an accurate preview of the live report
+// (overview, history, movement, BCA scoring, blood, nutrition, mental, prescriptions).
+window.TML_TEMPLATE_CASE = {
+  patient: {
+    name: 'Sample Patient', age: 36, sex: 'Male',
+    endpoint_date: '15 April 2026', patient_id: 'TML-2026-0142',
+    referring_physician: 'Dr. Rakshith Rajaram', authored_by: 'tml.clinical',
+    programme: 'Holistic Wellness Programme',
+  },
+  _pkg: 'pkg3',
+  history: {
+    complaints: 'Persistent neck stiffness and lower-back discomfort, worse after prolonged desk work.',
+    hpi: 'Gradual onset over 8 months; no trauma. Aggravated by sitting >2 hours, relieved by movement.',
+    pmh: 'Nil significant. No prior surgeries.',
+    medications: 'Multivitamin (intermittent). No regular medication.',
+    lifestyle: 'Deskbound IT professional, ~9 hours/day at workstation. Minimal structured exercise.',
+    goals: 'Reduce stiffness, improve mobility and posture, lower body-fat, build lower-limb strength.',
+  },
+  movement: {
+    baseline: {
+      posture: { shoulder_drop_cm: 1.8 },
+      neck: { lat_flex_right: 27, lat_flex_left: 16, lat_flex_ref: '56–65',
+              rotation_right: 52, rotation_left: 57, rotation_ref: '66–75' },
+      trunk: { flexion: 113, flexion_avg: 110, flexion_ref: '100–130',
+               extension: 29, extension_avg: 28, extension_ref: '26–45',
+               lat_flex_right: 45, lat_flex_left: 62, lat_flex_ref: '26–45',
+               rotation_right: 70, rotation_left: 72, rotation_ref: '31–45' },
+      dynamic: { squat_right_deg: 92, squat_left_deg: 100, sit_to_stand_s: 12.4, cmj_cm: 24.5 },
+      strength: { grip_right_n: 245, grip_left_n: 235, quad_right_n: 256, quad_left_n: 206 },
+      additional_tests: [
+        { title: 'Shoulder Flexion',           left: 172, right: 185 },
+        { title: 'Shoulder Abduction',         left: 162, right: 163 },
+        { title: 'Shoulder External Rotation', left: 47,  right: 72 },
+        { title: 'Shoulder Internal Rotation', left: 47,  right: 58 },
+        { title: 'Elbow Flexion',              left: 136, right: 140 },
+      ],
+      composite: { scaled: 62, max: 100, tier: 'orange', label: 'Significant Issue', n: 12 },
+      vald_tests: {},
+    },
+    recs: [
+      'Twice-weekly physiotherapy targeting cervical lateral flexion and lumbar extension mobility, 30 min/session.',
+      'Progressive single-leg loading (split squat, single-leg deadlift) to close residual quadriceps asymmetry.',
+      'Workstation ergonomic reset: monitor at eye level, lumbar support, 90-second mobility break every 50 minutes.',
+    ],
+  },
+  bca: {
+    metrics: [
+      { metric: 'Weight',                     value_num: 79.6 },
+      { metric: 'Body Mass Index ( BMI )',    value_num: 26.9 },
+      { metric: 'Fat percentage',             value_num: 24.6 },
+      { metric: 'Skeletal muscle mass',       value_num: 33.8 },
+      { metric: 'Skeletal muscle percentage', value_num: 42.5 },
+      { metric: 'Lean mass',                  value_num: 55.1 },
+      { metric: 'Lean mass percentage',       value_num: 69.2 },
+      { metric: 'Water percentage',           value_num: 52.1 },
+    ],
+    summary: 'Body composition is in the overweight range (BMI 26.9) with a body-fat percentage of 24.6%. Skeletal muscle percentage is healthy at 42.5%; lean mass and hydration are adequate. Priority is a modest reduction in body fat while preserving muscle mass.',
+    critical: {
+      immediate: 'Body-fat percentage of 24.6% is mildly elevated. Combined with a BMI of 26.9, a targeted fat-reduction plan is advised to lower metabolic risk while preserving lean mass.',
+      monitoring: 'Hydration and skeletal muscle percentage are within a healthy range. Re-assess body composition every 8–12 weeks to track progress.',
+    },
+  },
+  blood: {
+    meta: { lab: 'Hitech Diagnostic Centre', collected: '11 March 2026', reported: '11 March 2026', referred_by: 'Dr. Rakshith Rajaram' },
+    values: {
+      glucose_fasting: 109, hba1c: 5.6, insulin_fasting: 12.8,
+      crp: 4.25, magnesium: 2.1, ferritin: 132, vitd: 18.0,
+      hb: 15.2, wbc: 7600, platelets: 288, esr: 8,
+    },
+    recs: [
+      'Vitamin D3 60,000 IU weekly for 8 weeks, then re-test serum 25-OH.',
+      'Repeat fasting glucose + HbA1c in 12 weeks to confirm normoglycaemic trend.',
+    ],
+  },
+  nutrition: {
+    nutrimeter_baseline: { total: 20, max: 40, tier: 'yellow', label: 'Compromised Nourishment' },
+    nutrimeter_responses: [3, 3, 3, 2, 2, 2, 3, 2],
+    recs: [
+      'Protein-anchored breakfast (≥25 g protein) and low-glycaemic carbohydrate strategy.',
+      'Aim for BMI toward 25.0 over the next cycle at ~1% body-weight loss per 4 weeks.',
+    ],
+  },
+  wellbeing: {
+    rows: [
+      { param: 'Perceived Stress Scale (PSS-10)', baseline: '18/40', tier: 'yellow' },
+      { param: 'Pittsburgh Sleep Quality Index (PSQI)', baseline: '7/21', tier: 'yellow' },
+    ],
+    pss_note: 'Moderate stress band. Sustained relaxation practice expected to move this toward the low band.',
+    psqi_note: 'Just above the clinical cut-off of 5; wind-down protocol advised.',
+    recs: [
+      'Daily 10-minute diaphragmatic breath-work + progressive muscle relaxation.',
+      '60-minute wind-down protocol before bed: no screens, dim light, journaling.',
+    ],
+  },
+  integrated: {
+    observations: [
+      'Neck lateral flexion shows a significant 39% asymmetry (right-side restriction) — the single largest movement finding, aligning with the presenting complaint of neck stiffness.',
+      'Trunk lateral flexion asymmetry (28%, left-dominant) and mildly elevated body-fat percentage together suggest combined mobility + body-composition focus.',
+      'Metabolic markers are reassuring (HbA1c 5.6%), but Vitamin D is deficient at 18 ng/mL and should be corrected.',
+    ],
+    continue: [
+      'Physiotherapy-led mobility work for cervical and lumbar regions.',
+      'Protein-forward, low-glycaemic nutrition strategy.',
+    ],
+    attention: [
+      'Neck lateral flexion asymmetry — highest-priority movement finding.',
+      'Vitamin D deficiency — supplement and re-test.',
+      'Body-fat reduction while preserving lean mass.',
+    ],
+    next_step: 'Continue the Holistic Wellness programme with a structured emphasis on cervical/lumbar mobility, lower-limb strengthening, Vitamin D correction, and a modest fat-loss nutrition plan. Re-assess the full battery at 12 weeks.',
+  },
+};
+
 // Demo case for the generator's "Load all samples" button.
 // Non-PHI mock data so the button works on GitHub Pages where the real
 // sample PDFs (gitignored) are unavailable.
