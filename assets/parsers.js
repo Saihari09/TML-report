@@ -346,9 +346,14 @@
         page: p,
       };
 
-      // Render JUST the rep-photo card (no chart text), so the report card stays clean.
-      // PDF.js canvas has y=0 at top; rep-photo card sits at top-origin y≈130-330,
-      // x≈30-265 for single-rep pages and x≈30-360 for L/R dual-rep pages.
+      // Render JUST the rep-photo(s), excluding the "Rep N | angle" caption strip
+      // (those values are already shown as clean text in the report card). This keeps
+      // every card consistent — no half-cut captions.
+      //
+      // Layout (PDF points, top-origin, page 595×842):
+      //   • single photo  → one card at y 118–317, caption row ~286 → crop the photo above it
+      //   • dual photos    → two cards at y 133–347, caption row ~316 → crop both photos above it
+      // Detection: exactly one "Rep" caption ⇒ single; zero (Standing Posture) or two ⇒ dual.
       try {
         const renderScale = 2.0;            // higher DPI for sharp print
         const renderVp = page.getViewport({ scale: renderScale });
@@ -356,11 +361,13 @@
         canvas.width = renderVp.width;
         canvas.height = renderVp.height;
         await page.render({ canvasContext: canvas.getContext('2d'), viewport: renderVp }).promise;
-        // Detect dual-rep tests by counting "Rep N" labels in the left half.
+
         const repCount = items.filter(it => /^Rep\b/i.test(it.s) && it.x < 240).length;
-        const cropPdf = repCount > 1
-          ? { x: 28, y: 130, w: 260, h: 210 }   // L+R photos side-by-side (stops before chart)
-          : { x: 28, y: 130, w: 240, h: 210 };  // single photo
+        const single = repCount === 1;
+        // photo-only crop (points) — stops just above the caption row.
+        const cropPdf = single
+          ? { x: 24, y: 120, w: 250, h: 160 }   // one wide photo
+          : { x: 24, y: 132, w: 255, h: 174 };  // left + right photos
         const out = document.createElement('canvas');
         out.width  = Math.round(cropPdf.w * renderScale);
         out.height = Math.round(cropPdf.h * renderScale);
@@ -369,8 +376,8 @@
           cropPdf.w * renderScale, cropPdf.h * renderScale,
           0, 0, out.width, out.height
         );
-        tests[key].image = out.toDataURL('image/jpeg', 0.78);
-        tests[key].image_aspect = out.width / out.height; // for clean card layout
+        tests[key].image = out.toDataURL('image/jpeg', 0.82);
+        tests[key].image_aspect = out.width / out.height;
       } catch (e) { console.warn('thumb extract failed for', testName, e); }
     }
 
