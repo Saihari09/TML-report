@@ -234,9 +234,8 @@
     const b = m.baseline || {};
     const node = el('div', { class: 'page' }, [
       brandBand(),
-      el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '01'), '  MOVEMENT HEALTH']),
-      el('p', { class: 'intro' }, 'Movement parameters were assessed using the HumanTrak 3D motion capture system. All measurements are standardised and comparable across assessment cycles.'),
-      el('div', { class: 'subhead' }, 'Baseline — Movement Analysis Report'),
+      el('div', { class: 'section-bar' }, [el('span', { class: 'num' }, '01'), '  MOVEMENT ASSESSMENT']),
+      el('p', { class: 'intro' }, 'Movement parameters assessed using the HumanTrak 3D motion-capture and dynamometry systems. All measurements are standardised and comparable across assessment cycles.'),
     ]);
 
     // 1. Balance
@@ -400,6 +399,11 @@
       node.appendChild(cumulativeScoreBlock('Movement Score', b.composite.scaled, 100,
         { tier: b.composite.tier, label: b.composite.label }));
     }
+
+    // Number the movement subsections 1.1, 1.2, … (direct-child subheads only,
+    // so the cumulative-block's nested subheads are untouched).
+    let sub = 0;
+    node.querySelectorAll(':scope > .subhead').forEach(h => { sub++; h.textContent = `1.${sub}  ${h.textContent}`; });
 
     // Summary of Findings — derived from the status pills already rendered in this page.
     const concerns = [];
