@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report — Template (Mr. Anandan T.)</title>
-<link rel="stylesheet" href="./assets/report.css?v=20260629c" />
+<link rel="stylesheet" href="./assets/report.css?v=20260718b" />
 <style>
   .toolbar {
     position: sticky; top: 0; z-index: 50;
@@ -36,17 +36,17 @@
 
 <main id="report"></main>
 
-<script src="./assets/auth.js?v=20260629c"></script>
+<script src="./assets/auth.js?v=20260718b"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect */ }</script>
-<script src="./assets/scoring.js?v=20260629c"></script>
-<script src="./assets/sample-data.js?v=20260629c"></script>
-<script src="./assets/render.js?v=20260629c"></script>
+<script src="./assets/scoring.js?v=20260718b"></script>
+<script src="./assets/sample-data.js?v=20260718b"></script>
+<script src="./assets/render.js?v=20260718b"></script>
 <script>
   // Render the current full report shape (overview → history → movement → BCA →
   // blood → nutrition → mental → prescriptions → integrated) as the live reference.
   TML_RENDER.render(window.TML_TEMPLATE_CASE || TML_SAMPLE, document.getElementById('report'), {
-    include: ['cover', 'overview', 'history', 'movement', 'movement_images',
-              'bca', 'blood', 'nutrition', 'wellbeing', 'prescriptions', 'integrated'],
+    include: ['cover', 'blood', 'blood_rx', 'movement', 'movement_images', 'movement_rx',
+              'bca', 'nutrition', 'nutrition_rx', 'wellbeing', 'wellbeing_rx', 'integrated'],
   });
 </script>
 </body>

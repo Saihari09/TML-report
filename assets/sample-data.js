@@ -5,8 +5,10 @@ window.TML_TEMPLATE_CASE = {
   patient: {
     name: 'Sample Patient', age: 36, sex: 'Male',
     endpoint_date: '15 April 2026', patient_id: 'TML-2026-0142',
+    lead_practitioner: 'Dr. Rakshith Rajaram',
+    reporting_by: 'Dr. Dhakshana Chithra PT, Archana Suresh, Srinithi Natarajan',
     referring_physician: 'Dr. Rakshith Rajaram', authored_by: 'tml.clinical',
-    programme: 'Holistic Wellness Programme',
+    programme: 'Body Re-composition Programme',
   },
   _pkg: 'pkg3',
   history: {
@@ -35,7 +37,7 @@ window.TML_TEMPLATE_CASE = {
         { title: 'Shoulder Internal Rotation', left: 47,  right: 58 },
         { title: 'Elbow Flexion',              left: 136, right: 140 },
       ],
-      composite: { scaled: 62, max: 100, tier: 'orange', label: 'Significant Issue', n: 12 },
+      composite: { scaled: 62, max: 100, tier: 'yellow', label: 'Watch', n: 12 },
       vald_tests: {},
     },
     recs: [
@@ -74,8 +76,8 @@ window.TML_TEMPLATE_CASE = {
     ],
   },
   nutrition: {
-    nutrimeter_baseline: { total: 20, max: 40, tier: 'yellow', label: 'Compromised Nourishment' },
-    nutrimeter_responses: [3, 3, 3, 2, 2, 2, 3, 2],
+    // 5 symptom domains rated 1–4 (Weight & Appetite, Digestive & Hydration, Energy & Metabolism, Hormonal, Food Behaviour)
+    symptom_responses: [2, 3, 3, 1, 2],
     recs: [
       'Protein-anchored breakfast (≥25 g protein) and low-glycaemic carbohydrate strategy.',
       'Aim for BMI toward 25.0 over the next cycle at ~1% body-weight loss per 4 weeks.',
@@ -163,7 +165,7 @@ window.TML_DEMO = {
     ],
   },
   body_comp: { weight: 72.4, bmi: 24.1, bf: 28.4, vf: 9, mm: 28.9, a1c: 5.6 },
-  nutrimeter: [3, 3, 3, 2, 2, 2, 3, 2],         // total 20 → Compromised (range 8–40)
+  symptoms: [2, 3, 2, 1, 2],                    // 5 domains rated 1–4
   pss: 18, psqi: 7,
   recs: {
     movement: [

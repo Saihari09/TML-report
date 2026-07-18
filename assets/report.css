@@ -284,6 +284,43 @@ table.r td.center, table.r th.center { text-align: center; }
 .recs { padding-left: 18px; margin: 6px 0 0 0; }
 .recs li { margin-bottom: 6px; font-size: 9.5pt; }
 
+/* ===== Combined first page (cover-v2) ===== */
+.cover-v2 .cover-head { text-align: center; margin: 6px 0 14px; }
+.cover-v2 .cover-head .wordmark { font-size: 17pt; font-weight: 700; color: var(--tml-burgundy); letter-spacing: 0.06em; }
+.cover-v2 .cover-head .wordmark span { display: block; font-size: 8.5pt; letter-spacing: 0.18em; color: var(--tml-gold); font-weight: 500; margin-top: 2px; }
+.cover-v2 .report-title { font-size: 15pt; font-weight: 700; color: var(--tml-ink); margin-top: 10px; letter-spacing: 0.02em; }
+.section-mini {
+  font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--tml-burgundy); border-bottom: 1.5px solid var(--tml-gold);
+  padding-bottom: 3px; margin: 16px 0 8px;
+}
+.client-details { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+.cd-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px dotted var(--tml-line); font-size: 9.5pt; }
+.cd-k { color: var(--tml-muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 8pt; }
+.cd-v { font-weight: 600; color: var(--tml-ink); text-align: right; }
+.cover-complaints, .cover-summary { font-size: 9.5pt; line-height: 1.5; margin: 4px 0; }
+.chip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.chip-grid .ov-card { padding: 12px 8px; }
+.chip-grid .ov-ico { font-size: 18pt; }
+.chip-grid .ov-status { font-size: 10pt; }
+
+/* ===== Per-domain Key Findings / Recommendations / Signature ===== */
+.placeholder { color: var(--tml-muted); font-style: italic; font-size: 9.5pt; }
+.sig { margin-top: 26px; padding-top: 10px; border-top: 1px solid var(--tml-line); }
+.sig-role { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tml-burgundy); font-weight: 700; margin-bottom: 14px; }
+.sig-line { font-size: 12pt; color: var(--tml-muted); letter-spacing: 1px; }
+.sig-meta { display: flex; justify-content: space-between; font-size: 9pt; color: var(--tml-muted); margin-top: 4px; }
+
+/* 3-column cumulative interpretation table */
+.band-table.cum { grid-template-columns: 64px 96px 1fr; }
+.band-table.cum > div:nth-child(4n) { border-right: 1px solid var(--tml-line); }
+.band-table.cum > div:nth-child(3n) { border-right: 0; }
+
+/* ===== Value / status alignment (V3) ===== */
+table.r td.num, table.r th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.r th:last-child, table.r td:last-child { text-align: center; width: 100px; }
+table.r .status { margin: 0 auto; }
+
 /* ===== Overview page (icon cards + overall scores) ===== */
 .ov-title {
   font-size: 22pt; font-weight: 700; color: var(--tml-burgundy);

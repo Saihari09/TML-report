@@ -130,7 +130,15 @@ function asymmetryFromLR(left, right) {
 }
 
 // Tier label text (shown inside the status pill alongside the colour).
-const TIER_LABEL = { green: 'NORMAL', yellow: 'MILD', orange: 'MODERATE', red: 'URGENT' };
+// Terminology per the Comprehensive TML Patient Report template.
+const TIER_LABEL = { green: 'NORMAL', yellow: 'WATCH', orange: 'SIGNIFICANT', red: 'CRITICAL' };
+// Full colour-key rows used across the report.
+const TIER_KEY = [
+  ['green',  'GREEN — Normal',       'Within reference range. Maintain current habits.'],
+  ['yellow', 'YELLOW — Watch',       'Borderline. Monitor and add targeted support.'],
+  ['orange', 'ORANGE — Significant', 'Clear deviation. Structured intervention recommended.'],
+  ['red',    'RED — Critical',       'Marked deficit. Urgent clinical action required.'],
+];
 
 // Dynamo strength tests — value is the lower-side / higher-side ratio (asymmetry %).
 // Scoring is the same as asymmetryGeneric. Absolute force is reported but not banded
@@ -188,18 +196,53 @@ function movementComposite(testScores, qScores) {
   return { sum, max, scaled, n };
 }
 
+// 4-tier cumulative band per the template: 100–76 Normal, 75–51 Watch, 50–25 Significant, <25 Critical.
 function movementBand(scaled100) {
   if (scaled100 == null) return null;
-  if (scaled100 <= 50) return { tier: 'red',    label: 'Urgent Intervention',     blurb: 'Poor mobility & function. At risk of worsening symptoms or injury. Programme participation MANDATORY.' };
-  if (scaled100 <= 75) return { tier: 'orange', label: 'Significant Issue',       blurb: 'Early functional limitations. Symptoms increasing with work duration. Programme participation STRONGLY RECOMMENDED.' };
-  return { tier: 'green', label: 'Normal',                              blurb: 'Good mobility & function. No major work limitations. Programme participation OPTIONAL but ENCOURAGED.' };
+  if (scaled100 < 25)  return { tier: 'red',    label: 'Critical',    blurb: 'Marked deficit. Urgent clinical action required.' };
+  if (scaled100 <= 50) return { tier: 'orange', label: 'Significant', blurb: 'Clear deviation. Structured intervention recommended.' };
+  if (scaled100 <= 75) return { tier: 'yellow', label: 'Watch',       blurb: 'Borderline. Monitor and add targeted support.' };
+  return { tier: 'green', label: 'Normal', blurb: 'Within reference range. Maintain current habits.' };
 }
+// Shared cumulative-score band table rows (used by movement + nutrition cumulative blocks).
+const CUMULATIVE_KEY = [
+  ['green',  '100–76', 'Normal',      'Within reference range. Maintain current habits.'],
+  ['yellow', '75–51',  'Watch',       'Borderline. Monitor and add targeted support.'],
+  ['orange', '50–25',  'Significant', 'Clear deviation. Structured intervention recommended.'],
+  ['red',    '< 25',   'Critical',    'Marked deficit. Urgent clinical action required.'],
+];
 
 // -----------------------------------------------------------------------------
-// TML Nutrition Screen — clinical (8 items, 1-5 frequency).
-// Based on MUST / SF-MNA / dietary-symptom screening patterns.
-// Team will edit wording.
+// Nutrition Symptomatic Assessment — 5 categories, frequency scored 1–4.
+// Per the Comprehensive TML Patient Report template + V3 correction
+// ("nutrimeter scored out of 4 not 5"). Higher response = more symptoms = worse.
+//   Never 1 · Rarely 2 · Sometimes 3 · Often 4
+// Category tier: 1 green · 2 yellow · 3 orange · 4 red.
+// Cumulative is a wellness score /100 (Never is best), banded via the 4-tier band.
 // -----------------------------------------------------------------------------
+const NUTRITION_SYMPTOM_CATEGORIES = [
+  'Weight & Appetite',
+  'Digestive & Hydration',
+  'Energy & Metabolism',
+  'Hormonal',
+  'Food Behaviour',
+];
+const NUTRITION_FREQ_LABELS = ['Never (1)', 'Rarely (2)', 'Sometimes (3)', 'Often (4)'];
+
+function nutritionSymptomTier(resp) {
+  return resp == null ? null : ({ 1: 'green', 2: 'yellow', 3: 'orange', 4: 'red' }[resp] || null);
+}
+// responses: array of 1..4 (or null). Wellness points per answered category = 5 - resp.
+function nutritionCumulative(responses) {
+  const vals = (responses || []).filter(r => r != null);
+  if (!vals.length) return null;
+  const points = vals.reduce((a, r) => a + (5 - r), 0);
+  const max = vals.length * 4;
+  const scaled = Math.round((points / max) * 100);
+  return { scaled, points, max, n: vals.length, band: movementBand(scaled) };
+}
+
+// (Legacy 8-item screen retained for the standalone wellbeing.html page.)
 const NUTRI_METER_QUESTIONS = [
   "Unintentional weight change (up or down) in the past 3 months",
   "Skipping meals or eating fewer than 3 meals on most days",
@@ -212,7 +255,6 @@ const NUTRI_METER_QUESTIONS = [
 ];
 function nutriMeterBand(total) {
   if (total == null) return null;
-  // 8 items × 5 = 40 max. Bands proportionally rescaled from the prior 10/50.
   if (total <= 16) return { tier: 'green',  label: 'Optimal Nourishment',     blurb: 'Habits aligned with good wellbeing.' };
   if (total <= 28) return { tier: 'yellow', label: 'Compromised Nourishment', blurb: 'Subtle nutrition-related symptoms; targeted support advised.' };
   return { tier: 'red', label: 'Impaired Nourishment', blurb: '1:1 nutritionist consultation recommended.' };
@@ -438,11 +480,12 @@ const BIOMARKER_GROUPS = [
 // Export
 // -----------------------------------------------------------------------------
 window.TML_SCORING = {
-  TIER, TIER_LABEL, tierFromScore,
+  TIER, TIER_LABEL, TIER_KEY, CUMULATIVE_KEY, tierFromScore,
   MOVEMENT_TESTS, MOVEMENT_QUESTIONNAIRE, scoreMovementQuestion,
   DYNAMO_TESTS,
   movementComposite, movementBand,
   NUTRI_METER_QUESTIONS, nutriMeterBand,
+  NUTRITION_SYMPTOM_CATEGORIES, NUTRITION_FREQ_LABELS, nutritionSymptomTier, nutritionCumulative,
   pss10Band, psqiBand,
   BODY_COMP,
   BCA_PARAMS, BCA_MAX, bcaBand, tierToPoints, computeBCA, bloodFlags,

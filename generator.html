@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TML Report Generator</title>
-<link rel="stylesheet" href="./assets/report.css?v=20260629c" />
-<link rel="stylesheet" href="./assets/app.css?v=20260629c" />
+<link rel="stylesheet" href="./assets/report.css?v=20260718b" />
+<link rel="stylesheet" href="./assets/app.css?v=20260718b" />
 <style>
   .pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 4px; }
   .pkg-card { background: #fff; border: 2px solid var(--tml-line); border-radius: 6px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
@@ -188,9 +188,9 @@
       <div><label>Muscle Mass (kg)</label><input id="bc_mm" type="number" step="0.1" /></div>
       <div><label>HbA1c (%)</label><input id="bc_a1c" type="number" step="0.1" /></div>
     </div>
-    <div class="subhead" style="margin-top:18px">Nutri Meter (10 items, 1=Never … 5=Always)</div>
+    <div class="subhead" style="margin-top:18px">Symptomatic Assessment (5 domains · Never 1 → Often 4)</div>
     <table class="parsed" id="nmTable"></table>
-    <p style="font-size:13px; margin-top: 8px;"><strong>Total:</strong> <span id="nmTotal">—</span> / 40</p>
+    <p style="font-size:13px; margin-top: 8px;"><strong>Nutrition Score:</strong> <span id="nmTotal">—</span> / 100</p>
   </details>
 
   <!-- STEP 3c: Mental wellbeing (manual) -->
@@ -237,7 +237,7 @@
   <div id="reportHost"></div>
 </div>
 
-<script src="./assets/auth.js?v=20260629c"></script>
+<script src="./assets/auth.js?v=20260718b"></script>
 <script>if (!TML_AUTH.requireAuth()) { /* redirect in progress */ }</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
@@ -246,10 +246,10 @@
   window.pdfjsLib = pdfjs;
   window.dispatchEvent(new Event('pdfjs-ready'));
 </script>
-<script src="./assets/scoring.js?v=20260629c"></script>
-<script src="./assets/render.js?v=20260629c"></script>
-<script src="./assets/parsers.js?v=20260629c"></script>
-<script src="./assets/sample-data.js?v=20260629c"></script>
+<script src="./assets/scoring.js?v=20260718b"></script>
+<script src="./assets/render.js?v=20260718b"></script>
+<script src="./assets/parsers.js?v=20260718b"></script>
+<script src="./assets/sample-data.js?v=20260718b"></script>
 
 <script>
 // --- state -------------------------------------------------------------------
@@ -264,11 +264,12 @@ const state = {
 };
 
 const PKG_INCLUDES = {
-  // cover → overview → history → movement (+rep snaps before BCA) → BCA → blood → nutrition → wellbeing → prescriptions → integrated.
-  pkg0: ['cover', 'overview', 'history', 'movement', 'movement_images', 'prescriptions', 'integrated'],
-  pkg1: ['cover', 'overview', 'history', 'movement', 'movement_images', 'blood', 'prescriptions', 'integrated'],
-  pkg2: ['cover', 'overview', 'history', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'prescriptions', 'integrated'],
-  pkg3: ['cover', 'overview', 'history', 'movement', 'movement_images', 'bca', 'blood', 'nutrition', 'wellbeing', 'prescriptions', 'integrated'],
+  // Combined first page (cover) → blood first → each domain followed by its own
+  // Key Findings + Recommendations + Signature page → integrated summary.
+  pkg0: ['cover', 'movement', 'movement_images', 'movement_rx', 'integrated'],
+  pkg1: ['cover', 'blood', 'blood_rx', 'movement', 'movement_images', 'movement_rx', 'integrated'],
+  pkg2: ['cover', 'blood', 'blood_rx', 'movement', 'movement_images', 'movement_rx', 'bca', 'nutrition', 'nutrition_rx', 'integrated'],
+  pkg3: ['cover', 'blood', 'blood_rx', 'movement', 'movement_images', 'movement_rx', 'bca', 'nutrition', 'nutrition_rx', 'wellbeing', 'wellbeing_rx', 'integrated'],
 };
 const PKG_NAME = {
   pkg0: 'HumanTrak Movement Screen',
@@ -419,25 +420,29 @@ function addCustomTestRow() {
     </tr>`);
 }
 
+const NUTRI_N = TML_SCORING.NUTRITION_SYMPTOM_CATEGORIES.length;
 function buildNutriMeter() {
   const t = document.getElementById('nmTable');
-  t.innerHTML = '<thead><tr><th>#</th><th>Question</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Symptom Domain</th><th>Never (1)</th><th>Rarely (2)</th><th>Sometimes (3)</th><th>Often (4)</th></tr></thead>';
   const tb = document.createElement('tbody');
-  TML_SCORING.NUTRI_METER_QUESTIONS.forEach((q, i) => {
+  TML_SCORING.NUTRITION_SYMPTOM_CATEGORIES.forEach((cat, i) => {
     const tr = document.createElement('tr');
     let cells = '';
-    for (let n = 1; n <= 5; n++) cells += `<td style="text-align:center"><input type="radio" name="nm${i}" value="${n}"></td>`;
-    tr.innerHTML = `<td>${i+1}</td><td>${q}</td>${cells}`;
+    for (let n = 1; n <= 4; n++) cells += `<td style="text-align:center"><input type="radio" name="nm${i}" value="${n}"></td>`;
+    tr.innerHTML = `<td>${cat}</td>${cells}`;
     tb.appendChild(tr);
   });
   t.appendChild(tb);
   t.addEventListener('change', () => {
-    let s = 0, miss = 0;
-    for (let i = 0; i < 10; i++) {
+    const resp = [];
+    for (let i = 0; i < NUTRI_N; i++) {
       const sel = document.querySelector(`input[name="nm${i}"]:checked`);
-      if (sel) s += +sel.value; else miss++;
+      resp.push(sel ? +sel.value : null);
     }
-    document.getElementById('nmTotal').textContent = miss ? `${s} (${miss} unanswered)` : s;
+    const cum = TML_SCORING.nutritionCumulative(resp);
+    const miss = resp.filter(r => r == null).length;
+    document.getElementById('nmTotal').textContent = cum
+      ? `${cum.scaled}${miss ? ` (${miss} unanswered)` : ''}` : '—';
   });
 }
 
@@ -612,8 +617,8 @@ document.getElementById('loadSamples').addEventListener('click', () => {
   setIfEmpty('bc_mm',  bc.mm);
   setIfEmpty('bc_a1c', bc.a1c);
 
-  // Nutri Meter
-  D.nutrimeter.forEach((v, i) => {
+  // Symptomatic assessment (5 domains, 1–4)
+  (D.symptoms || [2, 3, 2, 1, 2]).forEach((v, i) => {
     const r = document.querySelector(`input[name="nm${i}"][value="${v}"]`);
     if (r) r.checked = true;
   });
@@ -746,13 +751,12 @@ document.getElementById('generate').addEventListener('click', () => {
     num('bc_mm')  != null && { param: 'Muscle Mass',              baseline: `${num('bc_mm')} kg`,     endpoint: '—', delta: '—', tier: 'green' },
     num('bc_a1c') != null && { param: 'HbA1c',                    baseline: `${num('bc_a1c')}%`,      endpoint: '—', delta: '—', tier: tierFor('hba1c', num('bc_a1c')) },
   ].filter(Boolean);
-  const nm = [];
-  for (let i = 0; i < 10; i++) {
+  // Symptomatic assessment: 5 domains, each rated 1–4.
+  const symptom_responses = [];
+  for (let i = 0; i < NUTRI_N; i++) {
     const sel = document.querySelector(`input[name="nm${i}"]:checked`);
-    nm.push(sel ? parseInt(sel.value) : null);
+    symptom_responses.push(sel ? parseInt(sel.value) : null);
   }
-  const nmTotal = nm.reduce((a, b) => a + (b || 0), 0);
-  const nmBand = TML_SCORING.nutriMeterBand(nmTotal);
 
   const pss = num('pss'); const psqi = num('psqi');
   const pssBand = pss != null ? TML_SCORING.pss10Band(pss) : null;
@@ -793,8 +797,7 @@ document.getElementById('generate').addEventListener('click', () => {
     bca: state.bca ? { section_num: '02', ...state.bca } : null,
     blood: { section_num: state.bca ? '03' : '02', meta: state.blood.meta, values: state.blood.values, pending: [], recs: recs_blood },
     nutrition: { body_comp,
-      nutrimeter_baseline: nmTotal > 0 ? { total: nmTotal, max: 40, tier: nmBand.tier, label: nmBand.label } : null,
-      nutrimeter_responses: nm,
+      symptom_responses,
       recs: recs_nutrition,
     },
     wellbeing: { rows: wbRows,
